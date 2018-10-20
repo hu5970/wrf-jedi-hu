@@ -14,11 +14,12 @@
 #include <boost/shared_ptr.hpp>
 
 #include "GeometryWRFJEDI.h"
+#include "GetValuesTrajWRFJEDI.h"
 #include "oops/base/Variables.h"
-#include "util/DateTime.h"
-#include "util/Duration.h"
-#include "util/ObjectCounter.h"
-#include "util/Printable.h"
+#include "oops/util/DateTime.h"
+#include "oops/util/Duration.h"
+#include "oops/util/ObjectCounter.h"
+#include "oops/util/Printable.h"
 
 // Forward declarations
 namespace eckit {
@@ -31,8 +32,11 @@ namespace oops {
 }
 
 namespace ufo {
-  class Locations;
   class GeoVaLs;
+}
+
+namespace ioda {
+  class Locations;
 }
 
 namespace wrfjedi {
@@ -44,7 +48,8 @@ class FieldsWRFJEDI : public util::Printable,
   static const std::string classname() {return "wrfjedi::FieldsWRFJEDI";}
 
 // Constructors and basic operators
-  FieldsWRFJEDI(const GeometryWRFJEDI &, const oops::Variables &, const util::DateTime &);
+  FieldsWRFJEDI(const GeometryWRFJEDI &, const oops::Variables &, 
+                const util::DateTime &);
   FieldsWRFJEDI(const FieldsWRFJEDI &, const GeometryWRFJEDI &);
   FieldsWRFJEDI(const FieldsWRFJEDI &, const oops::Variables &);
   FieldsWRFJEDI(const FieldsWRFJEDI &, const bool);
@@ -63,22 +68,29 @@ class FieldsWRFJEDI : public util::Printable,
   void random();
   void dirac(const eckit::Configuration &);
 
-// Interpolate to given location
-  void interpolate(const ufo::Locations &, const oops::Variables &, ufo::GeoVaLs &) const;
-  void interpolateTL(const ufo::Locations &, const oops::Variables &, ufo::GeoVaLs &) const;
-  void interpolateAD(const ufo::Locations &, const oops::Variables &, const ufo::GeoVaLs &);
+/// Get state values or increments at observation locations
+  void getValues(const ioda::Locations &, const oops::Variables &,
+                 ufo::GeoVaLs &) const;
+  void getValues(const ioda::Locations &, const oops::Variables &,
+                 ufo::GeoVaLs &, const GetValuesTrajWRFJEDI &) const;
+  void getValuesTL(const ioda::Locations &, const oops::Variables &,
+                   ufo::GeoVaLs &, const GetValuesTrajWRFJEDI &) const;
+  void getValuesAD(const ioda::Locations &, const oops::Variables &,
+                   const ufo::GeoVaLs &, const GetValuesTrajWRFJEDI &);
 
 // Interpolate full fields
   void changeResolution(const FieldsWRFJEDI &);
   void add(const FieldsWRFJEDI &);
   void diff(const FieldsWRFJEDI &, const FieldsWRFJEDI &);
 
-// Convert to/from unstructured grid
-  void convert_to(oops::UnstructuredGrid &) const;
-  void convert_from(const oops::UnstructuredGrid &);
+// Unstructured grid
+  void ug_coord(oops::UnstructuredGrid &, const int &) const;
+  void field_to_ug(oops::UnstructuredGrid &, const int &) const;
+  void field_from_ug(const oops::UnstructuredGrid &);
 
 // Utilities
   void read(const eckit::Configuration &);
+  void analytic_init(const eckit::Configuration &, const GeometryMPAS &);
   void write(const eckit::Configuration &) const;
   double norm() const;
   boost::shared_ptr<const GeometryWRFJEDI> geometry() const {return geom_;}

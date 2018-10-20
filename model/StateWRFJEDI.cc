@@ -9,14 +9,16 @@
 
 #include <algorithm>
 #include <string>
+#include <vector>
 
 #include "eckit/config/LocalConfiguration.h"
-#include "util/Logger.h"
+#include "oops/util/Logger.h"
 #include "ufo/GeoVaLs.h"
-#include "ufo/Locations.h"
+#include "ioda/Locations.h"
 #include "ModelBiasWRFJEDI.h"
 #include "FieldsWRFJEDI.h"
 #include "GeometryWRFJEDI.h"
+#include "GetValuesTrajWRFJEDI.h"
 #include "IncrementWRFJEDI.h"
 #include "ModelWRFJEDI.h"
 #include "oops/base/Variables.h"
@@ -36,55 +38,14 @@ StateWRFJEDI::StateWRFJEDI(const GeometryWRFJEDI & resol, const oops::Variables 
   oops::Log::trace() << "StateWRFJEDI::StateWRFJEDI created." << std::endl;
 }
 // -----------------------------------------------------------------------------
-StateWRFJEDI::StateWRFJEDI(const GeometryWRFJEDI & resol, const eckit::Configuration & file)
-  : fields_(), stash_()
+StateWRFJEDI::StateWRFJEDI(const GeometryWRFJEDI & resol, const oops::Variables & vars,
+                           const eckit::Configuration & file)
+  : fields_(new FieldsWRFJEDI(resol, vars, util::DateTime())), stash_()
 {
-// Should get variables from file. YT
-//  eckit::LocalConfiguration modelvars;
-//  modelvars.set("variables", "cv");
-//  oops::Variables vars(modelvars);
-
-//  eckit::LocalConfiguration modelvars;
-//  const std::vector<std::string> vv{"cv"};
-//  modelvars.set("variables", vv); 
-//  oops::Variables vars(vv);
-
-/*
-// Should get variables from file. YT
-  const std::vector<std::string> vv{"x","bc"};
-  oops::Variables vars(vv);
-  fields_.reset(new FieldsQG(resol, vars, util::DateTime()));
-  fields_->read(file);
-
-  ASSERT(fields_);
-  Log::trace() << "StateQG::StateQG created and read in." << std::endl;
-
- */
-// Should get variables from file. YT
-
-// WORKING WITHOUT READING THE NAMELIST AS QG/
-  oops::Log::trace() << "StateWRFJEDI::GD0 enforcing to variable to cv" << std::endl;
-//  --- For Interface ---
-//  const std::vector<std::string> vv{"theta", "rho", "index_qv", "uReconstructZonal", "uReconstructMeridional"};
-//  --- For HofX ---
-//  const std::vector<std::string> vv{"theta", "index_qv", "pressure_base"};
-//  const std::vector<std::string> vv{"theta", "rho", "index_qv", "uReconstructZonal", "uReconstructMeridional", "pressure_base"};
-//  const std::vector<std::string> vv{"theta", "rho", "index_qv", "uReconstructZonal", "uReconstructMeridional", "pressure"};
-//  --- For Dirac ---
-//  const std::vector<std::string> vv{"theta"};
-//  const std::vector<std::string> vv{"theta", "uReconstructZonal"};
-//  const std::vector<std::string> vv{"uReconstructZonal", "theta"};
-  const std::vector<std::string> vv{"theta", "rho", "index_qv", "uReconstructZonal", "uReconstructMeridional"};
-//  const std::vector<std::string> vv{"theta", "rho", "index_qv", "uReconstructZonal", "uReconstructMeridional", "pressure"};
-  oops::Log::trace() << "StateWRFJEDI::GD1 enforcing to variable to cv" << std::endl;
-  oops::Variables vars(vv);
-  oops::Log::trace() << "StateWRFJEDI::GD2" << std::endl;
-
-
-  fields_.reset(new FieldsWRFJEDI(resol, vars, util::DateTime()));
-  oops::Log::trace() << "StateWRFJEDI::GD3 before read" << std::endl;
-  fields_->read(file);
-  oops::Log::trace() << "StateWRFJEDI::GD3 after read" << std::endl;
+  if (file.has("analytic_init"))
+    fields_->analytic_init(file, resol);
+  else
+    fields_->read(file);
 
   ASSERT(fields_);
 
@@ -94,8 +55,11 @@ StateWRFJEDI::StateWRFJEDI(const GeometryWRFJEDI & resol, const eckit::Configura
 StateWRFJEDI::StateWRFJEDI(const GeometryWRFJEDI & resol, const StateWRFJEDI & other)
   : fields_(new FieldsWRFJEDI(*other.fields_, resol)), stash_()
 {
+  oops::Log::trace() << "StateWRFJEDI::StateWRFJEDI create by interpolation."
+                     << std::endl;
   ASSERT(fields_);
-  oops::Log::trace() << "StateWRFJEDI::StateWRFJEDI created by interpolation." << std::endl;
+  oops::Log::trace() << "StateWRFJEDI::StateWRFJEDI created by interpolation." 
+                     << std::endl;
 }
 // -----------------------------------------------------------------------------
 StateWRFJEDI::StateWRFJEDI(const StateWRFJEDI & other)
@@ -119,10 +83,21 @@ StateWRFJEDI & StateWRFJEDI::operator=(const StateWRFJEDI & rhs) {
   return *this;
 }
 // -----------------------------------------------------------------------------
-/// Interpolate to observation location
+/// Get state values at observation locations
 // -----------------------------------------------------------------------------
-void StateWRFJEDI::interpolate(const ufo::Locations & locs, const oops::Variables & vars, ufo::GeoVaLs & cols) const {
-  fields_->interpolate(locs, vars, cols);
+void StateWRFJEDI::getValues(const ioda::Locations & locs,
+                             const oops::Variables & vars,
+                             ufo::GeoVaLs & cols) const {
+  oops::Log::trace() << "StateWRFJEDI::getValues STANDARD ONE" << std::endl;
+  fields_->getValues(locs, vars, cols);
+}
+// -----------------------------------------------------------------------------
+void StateWRFJEDI::getValues(const ioda::Locations & locs,
+                             const oops::Variables & vars,
+                             ufo::GeoVaLs & cols,
+                             const GetValuesTrajWRFJEDI & traj) const {
+  oops::Log::trace() << "StateWRFJEDI::getValues PPTRAJ" << std::endl;
+  fields_->getValues(locs, vars, cols, traj);
 }
 // -----------------------------------------------------------------------------
 /// Interpolate full fields
@@ -141,20 +116,15 @@ StateWRFJEDI & StateWRFJEDI::operator+=(const IncrementWRFJEDI & dx) {
   return *this;
 }
 // -----------------------------------------------------------------------------
-/// Convert to/from unstructured grid
-// -----------------------------------------------------------------------------
-void StateWRFJEDI::convert_to(oops::UnstructuredGrid & ug) const {
-  fields_->convert_to(ug);
-}
-// -----------------------------------------------------------------------------
-void StateWRFJEDI::convert_from(const oops::UnstructuredGrid & ug) {
-  fields_->convert_from(ug);
-}
-// -----------------------------------------------------------------------------
 /// I/O and diagnostics
 // -----------------------------------------------------------------------------
 void StateWRFJEDI::read(const eckit::Configuration & files) {
   fields_->read(files);
+}
+// -----------------------------------------------------------------------------
+void StateWRFJEDI::analytic_init(const eckit::Configuration & files,
+                                 const GeometryWRFJEDI & resol) {
+  fields_->analytic_init(files, resol);
 }
 // -----------------------------------------------------------------------------
 void StateWRFJEDI::write(const eckit::Configuration & files) const {

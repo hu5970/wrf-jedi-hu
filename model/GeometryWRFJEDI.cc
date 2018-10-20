@@ -5,8 +5,8 @@
  * which can be obtained at http://www.apache.org/licenses/LICENSE-2.0. 
  */
 
-#include "util/Logger.h"
-#include "GeometryWRFJEDI.h"
+#include "oops/util/Logger.h"
+#include "model/GeometryWRFJEDI.h"
 #include "Fortran.h"
 #include "eckit/config/Configuration.h"
 
@@ -31,12 +31,12 @@ GeometryWRFJEDI::~GeometryWRFJEDI() {
 }
 // -----------------------------------------------------------------------------
 void GeometryWRFJEDI::print(std::ostream & os) const {
-  int nCells;
-  int nEdges;
-  int nVertLevels;
-  int nVertLevelsP1;
+  int nx;
+  int ny;
+  int nz;
+  int nzP1;
   //wrfjedi_geo_info_f90(keyGeom_,nCells, nEdges, nVertLevels, nVertLevelsP1);
-  os << "nCells = " << nCells << ", nEdges = " << nEdges <<", nVertLevels = "<<nVertLevels<<", nVertLevelsP1 = "<<nVertLevelsP1 ;
+  os << "nx = " << nx << ", ny = " << ny <<", nz = "<<nz<<", nzP1 = "<<nzP1 ;
 }
 // -----------------------------------------------------------------------------
 }  // namespace wrfjedi

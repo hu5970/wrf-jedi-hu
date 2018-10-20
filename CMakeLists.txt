@@ -49,9 +49,9 @@ ecbuild_add_option( FEATURE MPI DEFAULT ON
                     REQUIRED_PACKAGES "MPI COMPONENTS CXX Fortran" )
 
 
-if ( NOT ECKIT_HAVE_MPI )
-  ecbuild_error("OOPS requested to build with MPI but eckit wasn't built with MPI: ECKIT_HAVE_MPI = ${ECKIT_HAVE_MPI}")
-endif()
+#if ( NOT ECKIT_HAVE_MPI )
+#  ecbuild_error("OOPS requested to build with MPI but eckit wasn't built with MPI: ECKIT_HAVE_MPI = ${ECKIT_HAVE_MPI}")
+#endif()
 
 #if( HAVE_MPI )
   set( OOPS_MPI_C_LIBRARIES            ${MPI_CXX_LIBRARIES} )
@@ -89,7 +89,7 @@ include_directories( ${UFO_INCLUDE_DIRS} )
 
 # list( APPEND WRF_TPLS ufo oops )
 
-set( WRFJEDI_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_BINARY_DIR}/src
+set( WRFJEDI_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR}
                         ${CMAKE_Fortran_MODULE_DIRECTORY} )
 set( WRFJEDI_LIBRARIES wrf-jedi )
 
@@ -107,10 +107,10 @@ endforeach()
 ################################################################################
 
 # include( wrf_compiler_flags )
-include_directories( ${WRFJEDI_INCLUDE_DIRS} ${WRFJEDI_EXTRA_INCLUDE_DIRS}
-                     ${CMAKE_CURRENT_SOURCE_DIR}/src )
+include_directories( ${WRFJEDI_INCLUDE_DIRS}/model ${WRFJEDI_EXTRA_INCLUDE_DIRS}
+                     ${CMAKE_CURRENT_SOURCE_DIR}/model )
 
-add_subdirectory( src )
+add_subdirectory( model )
 add_subdirectory( mains )
 add_subdirectory( test )
 

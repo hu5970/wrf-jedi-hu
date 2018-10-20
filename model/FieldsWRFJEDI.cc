@@ -16,11 +16,12 @@
 #include "oops/base/Variables.h"
 #include "oops/generic/UnstructuredGrid.h"
 #include "ufo/GeoVaLs.h"
-#include "ufo/Locations.h"
-#include "util/Logger.h"
+#include "ioda/Locations.h"
+#include "oops/util/Logger.h"
 #include "Fortran.h"
 #include "GeometryWRFJEDI.h"
-#include "util/DateTime.h"
+#include "GetValuesTrajMPAS.h"
+#include "oops/util/DateTime.h"
 
 // -----------------------------------------------------------------------------
 namespace wrfjedi {
@@ -126,22 +127,39 @@ void FieldsWRFJEDI::random() {
   //wrfjedi_field_random_f90(keyFlds_);
 }
 // -----------------------------------------------------------------------------
-void FieldsWRFJEDI::interpolate(const ufo::Locations & locs, const oops::Variables & vars,
-                              ufo::GeoVaLs & gom) const {
+void FieldsWRFJEDI::getValues(const ioda::Locations & locs,
+                           const oops::Variables & vars,
+                           ufo::GeoVaLs & gom) const {
   const eckit::Configuration * conf = &vars.toFortran();
-  //wrfjedi_field_interp_f90(keyFlds_, locs.toFortran(), &conf, gom.toFortran());
+//  wrfjedi_field_getvalues_notraj_f90(keyFlds_, locs.toFortran(), &conf,
+//                                 gom.toFortran());
 }
 // -----------------------------------------------------------------------------
-void FieldsWRFJEDI::interpolateTL(const ufo::Locations & locs, const oops::Variables & vars,
-                                ufo::GeoVaLs & gom) const {
+void FieldsWRFJEDI::getValues(const ioda::Locations & locs,
+                           const oops::Variables & vars,
+                           ufo::GeoVaLs & gom,
+                           const GetValuesTrajWRFJEDI & traj) const {
   const eckit::Configuration * conf = &vars.toFortran();
-  //wrfjedi_field_interp_tl_f90(keyFlds_, locs.toFortran(), &conf, gom.toFortran());
+//  wrfjedi_field_getvalues_f90(keyFlds_, locs.toFortran(), &conf,
+//                           gom.toFortran(), traj.toFortran());
 }
 // -----------------------------------------------------------------------------
-void FieldsWRFJEDI::interpolateAD(const ufo::Locations & locs, const oops::Variables & vars,
-                                const ufo::GeoVaLs & gom) {
+void FieldsWRFJEDI::getValuesTL(const ioda::Locations & locs,
+                             const oops::Variables & vars,
+                             ufo::GeoVaLs & gom,
+                             const GetValuesTrajWRFJEDI & traj) const {
   const eckit::Configuration * conf = &vars.toFortran();
-  //wrfjedi_field_interp_ad_f90(keyFlds_, locs.toFortran(), &conf, gom.toFortran());
+//  wrfjedi_field_getvalues_tl_f90(keyFlds_, locs.toFortran(), &conf,
+//                              gom.toFortran(), traj.toFortran());
+}
+// -----------------------------------------------------------------------------
+void FieldsWRFJEDI::getValuesAD(const ioda::Locations & locs,
+                             const oops::Variables & vars,
+                             const ufo::GeoVaLs & gom,
+                             const GetValuesTrajWRFJEDI & traj) {
+  const eckit::Configuration * conf = &vars.toFortran();
+//  wrfjedi_field_getvalues_ad_f90(keyFlds_, locs.toFortran(), &conf,
+//                              gom.toFortran(), traj.toFortran());
 }
 // -----------------------------------------------------------------------------
 void FieldsWRFJEDI::changeResolution(const FieldsWRFJEDI & other) {
@@ -156,18 +174,33 @@ void FieldsWRFJEDI::diff(const FieldsWRFJEDI & x1, const FieldsWRFJEDI & x2) {
   //wrfjedi_field_diff_incr_f90(keyFlds_, x1.keyFlds_, x2.keyFlds_);
 }
 // -----------------------------------------------------------------------------
-void FieldsWRFJEDI::convert_to(oops::UnstructuredGrid & ug) const {
-  //wrfjedi_field_convert_to_f90(keyFlds_, ug.toFortran());
+void FieldsWRFJEDI::ug_coord(oops::UnstructuredGrid & ug,
+                          const int & colocated) const {
+//  wrfjedi_field_ug_coord_f90(keyFlds_, ug.toFortran(), colocated);
 }
 // -----------------------------------------------------------------------------
-void FieldsWRFJEDI::convert_from(const oops::UnstructuredGrid & ug) {
-  //wrfjedi_field_convert_from_f90(keyFlds_, ug.toFortran());
+void FieldsWRFJEDI::field_to_ug(oops::UnstructuredGrid & ug,
+                             const int & colocated) const {
+//  wrfjedi_field_field_to_ug_f90(keyFlds_, ug.toFortran(), colocated);
+}
+// -----------------------------------------------------------------------------
+void FieldsWRFJEDI::field_from_ug(const oops::UnstructuredGrid & ug) {
+//  wrfjedi_field_field_from_ug_f90(keyFlds_, ug.toFortran());
 }
 // -----------------------------------------------------------------------------
 void FieldsWRFJEDI::read(const eckit::Configuration & config) {
   const eckit::Configuration * conf = &config;
   util::DateTime * dtp = &time_;
   //wrfjedi_field_read_file_f90(keyFlds_, &conf, &dtp);
+}
+// -----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
+void FieldsWRFJEDI::analytic_init(const eckit::Configuration & config,
+                                  const GeometryWRFJEDI & geom) {
+  const eckit::Configuration * conf = &config;
+  util::DateTime * dtp = &time_;
+// JJG: Need to check if geometry is initialized before this!!!
+  wrfjedi_field_analytic_init_f90(keyFlds_, geom.toFortran(), &conf, &dtp);
 }
 // -----------------------------------------------------------------------------
 void FieldsWRFJEDI::write(const eckit::Configuration & config) const {

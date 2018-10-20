@@ -14,9 +14,9 @@
 #include <boost/scoped_ptr.hpp>
 
 #include "FieldsWRFJEDI.h"
-#include "util/DateTime.h"
-#include "util/ObjectCounter.h"
-#include "util/Printable.h"
+#include "oops/util/DateTime.h"
+#include "oops/util/ObjectCounter.h"
+#include "oops/util/Printable.h"
 
 namespace eckit {
   class Configuration;
@@ -24,6 +24,9 @@ namespace eckit {
 
 namespace ufo {
   class GeoVaLs;
+}
+
+namespace ioda {
   class Locations;
 }
 
@@ -34,6 +37,7 @@ namespace oops {
 
 namespace wrfjedi {
   class GeometryWRFJEDI;
+  class GetValuesTrajWRFJEDI;
   class IncrementWRFJEDI;
 
 /// WRFJEDI model state
@@ -49,15 +53,20 @@ class StateWRFJEDI : public util::Printable,
   static const std::string classname() {return "wrfjedi::StateWRFJEDI";}
 
 /// Constructor, destructor
-  StateWRFJEDI(const GeometryWRFJEDI &, const oops::Variables &, const util::DateTime &);  // Is it used?
-  StateWRFJEDI(const GeometryWRFJEDI &, const eckit::Configuration &);
+  StateWRFJEDI(const GeometryWRFJEDI &, const oops::Variables &, 
+               const util::DateTime &);  // Is it used?
+  StateWRFJEDI(const GeometryWRFJEDI &, const oops::Variables &,
+               const eckit::Configuration &);
   StateWRFJEDI(const GeometryWRFJEDI &, const StateWRFJEDI &);
   StateWRFJEDI(const StateWRFJEDI &);
   virtual ~StateWRFJEDI();
   StateWRFJEDI & operator=(const StateWRFJEDI &);
 
-/// Interpolate to observation location
-  void interpolate(const ufo::Locations &, const oops::Variables &, ufo::GeoVaLs &) const;
+/// Get state values at observation locations
+  void getValues(const ioda::Locations &, const oops::Variables &,
+                 ufo::GeoVaLs &) const;
+  void getValues(const ioda::Locations &, const oops::Variables &,
+                 ufo::GeoVaLs &, const GetValuesTrajWRFJEDI &) const;
 
 /// Interpolate full fields
   void changeResolution(const StateWRFJEDI & xx);
@@ -67,14 +76,11 @@ class StateWRFJEDI : public util::Printable,
 
 /// I/O and diagnostics
   void read(const eckit::Configuration &);
+  void analytic_init(const eckit::Configuration &, const GeometryWRFJEDI &);
   void write(const eckit::Configuration &) const;
   double norm() const {return fields_->norm();}
   const util::DateTime & validTime() const {return fields_->time();}
   util::DateTime & validTime() {return fields_->time();}
-
-/// Convert to/from unstructured grid
-  void convert_to(oops::UnstructuredGrid &) const;
-  void convert_from(const oops::UnstructuredGrid &);
 
 /// Access to fields
   FieldsWRFJEDI & fields() {return *fields_;}

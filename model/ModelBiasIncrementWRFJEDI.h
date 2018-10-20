@@ -10,7 +10,7 @@
 
 #include <iostream>
 
-#include "util/Printable.h"
+#include "oops/util/Printable.h"
 
 namespace eckit {
   class Configuration;
@@ -28,15 +28,19 @@ class ModelBiasIncrementWRFJEDI : public util::Printable {
 /// Constructor, destructor
   ModelBiasIncrementWRFJEDI(const GeometryWRFJEDI &, const eckit::Configuration &) {}
   ModelBiasIncrementWRFJEDI(const ModelBiasIncrementWRFJEDI &, const bool) {}
-  ModelBiasIncrementWRFJEDI(const ModelBiasIncrementWRFJEDI &, const eckit::Configuration &) {}
+  ModelBiasIncrementWRFJEDI(const ModelBiasIncrementWRFJEDI &, 
+                            const eckit::Configuration &) {}
   ~ModelBiasIncrementWRFJEDI() {}
 
 /// Linear algebra operators
   void diff(const ModelBiasWRFJEDI &, const ModelBiasWRFJEDI &) {}
   void zero() {}
-  ModelBiasIncrementWRFJEDI & operator=(const ModelBiasIncrementWRFJEDI &) {return *this;}
-  ModelBiasIncrementWRFJEDI & operator+=(const ModelBiasIncrementWRFJEDI &) {return *this;}
-  ModelBiasIncrementWRFJEDI & operator-=(const ModelBiasIncrementWRFJEDI &) {return *this;}
+  ModelBiasIncrementWRFJEDI & operator=(const ModelBiasIncrementWRFJEDI &) 
+                                       {return *this;}
+  ModelBiasIncrementWRFJEDI & operator+=(const ModelBiasIncrementWRFJEDI &)
+                                        {return *this;}
+  ModelBiasIncrementWRFJEDI & operator-=(const ModelBiasIncrementWRFJEDI &)
+                                        {return *this;}
   ModelBiasIncrementWRFJEDI & operator*=(const double) {return *this;}
   void axpy(const double, const ModelBiasIncrementWRFJEDI &) {}
   double dot_product_with(const ModelBiasIncrementWRFJEDI &) const {return 0.0;}

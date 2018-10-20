@@ -5,21 +5,30 @@
  * which can be obtained at http://www.apache.org/licenses/LICENSE-2.0. 
  */
 
-#include "ModelWRFJEDI.h"
 
-#include "util/Logger.h"
-#include "ModelBiasWRFJEDI.h"
+#include <vector>
+
+#include "eckit/config/Configuration.h"
+
 #include "FieldsWRFJEDI.h"
 #include "Fortran.h"
 #include "GeometryWRFJEDI.h"
+#include "ModelWRFJEDI.h"
+#include "ModelBiasWRFJEDI.h"
 #include "StateWRFJEDI.h"
-#include "eckit/config/Configuration.h"
-#include "util/DateTime.h"
+
+#include "oops/util/DateTime.h"
+#include "oops/util/Logger.h"
 
 namespace wrfjedi {
 // -----------------------------------------------------------------------------
-ModelWRFJEDI::ModelWRFJEDI(const GeometryWRFJEDI & resol, const eckit::Configuration & model)
+ static oops::ModelMaker<WRFJEDITraits, ModelWRFJEDI> makermodel_("WRFJEDI");
+// -----------------------------------------------------------------------------
+ModelWRFJEDI::ModelWRFJEDI(const GeometryWRFJEDI & resol, 
+                           const eckit::Configuration & model)
   : keyConfig_(0), tstep_(0), geom_(resol)
+    vars_(std::vector<std::string>{"temperature", "pressure", "index_qv",
+                              "uReconstructZonal", "uReconstructMeridional"})
 {
   oops::Log::trace() << "ModelWRFJEDI::ModelWRFJEDI" << std::endl;
   tstep_ = util::Duration(model.getString("tstep"));
@@ -52,10 +61,12 @@ void ModelWRFJEDI::finalize(StateWRFJEDI & xx) const {
 // -----------------------------------------------------------------------------
 int ModelWRFJEDI::saveTrajectory(StateWRFJEDI & xx, const ModelBiasWRFJEDI &) const {
   int ftraj = 0;
-  oops::Log::debug() << "ModelWRFJEDI::saveTrajectory fields in" << xx.fields() << std::endl;
+  oops::Log::debug() << "ModelWRFJEDI::saveTrajectory fields in" << xx.fields() 
+                     << std::endl;
   //wrfjedi_model_prop_traj_f90(keyConfig_, xx.fields().toFortran(), ftraj);
   ASSERT(ftraj != 0);
-  oops::Log::debug() << "ModelWRFJEDI::saveTrajectory fields out" << xx.fields() << std::endl;
+  oops::Log::debug() << "ModelWRFJEDI::saveTrajectory fields out" << xx.fields() 
+                     << std::endl;
   return ftraj;
 }
 // -----------------------------------------------------------------------------

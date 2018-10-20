@@ -13,8 +13,8 @@
 #include <boost/noncopyable.hpp>
 
 #include "eckit/config/LocalConfiguration.h"
-#include "util/ObjectCounter.h"
-#include "util/Printable.h"
+#include "oops/util/ObjectCounter.h"
+#include "oops/util/Printable.h"
 
 namespace wrfjedi {
   class ModelBiasWRFJEDI;
@@ -30,13 +30,16 @@ class ModelBiasCovarianceWRFJEDI : public util::Printable,
   static const std::string classname() {return "wrfjedi::ModelBiasCovarianceWRFJEDI";}
 
 /// Constructor, destructor
-  ModelBiasCovarianceWRFJEDI(const eckit::Configuration & conf, const GeometryWRFJEDI &): conf_(conf) {}
+  ModelBiasCovarianceWRFJEDI(const eckit::Configuration & conf,
+                             const GeometryWRFJEDI &): conf_(conf) {}
   ~ModelBiasCovarianceWRFJEDI() {}
 
 /// Linear algebra operators
   void linearize(const ModelBiasWRFJEDI &, const GeometryWRFJEDI &) {}
-  void multiply(const ModelBiasIncrementWRFJEDI &, ModelBiasIncrementWRFJEDI) const {}
-  void inverseMultiply(const ModelBiasIncrementWRFJEDI &, ModelBiasIncrementWRFJEDI) const {}
+  void multiply(const ModelBiasIncrementWRFJEDI &, 
+                ModelBiasIncrementWRFJEDI) const {}
+  void inverseMultiply(const ModelBiasIncrementWRFJEDI &, 
+                       ModelBiasIncrementWRFJEDI) const {}
   void randomize(ModelBiasIncrementWRFJEDI &) const {}
 
   const eckit::Configuration & config() const {return conf_;}

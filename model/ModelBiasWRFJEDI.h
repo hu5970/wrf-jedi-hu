@@ -12,8 +12,8 @@
 #include <string>
 #include <boost/noncopyable.hpp>
 
-#include "util/ObjectCounter.h"
-#include "util/Printable.h"
+#include "oops/util/ObjectCounter.h"
+#include "oops/util/Printable.h"
 
 namespace eckit {
   class Configuration;
@@ -36,8 +36,8 @@ namespace wrfjedi {
 // -----------------------------------------------------------------------------
 
 class ModelBiasWRFJEDI : public util::Printable,
-                       private boost::noncopyable,
-                       private util::ObjectCounter<ModelBiasWRFJEDI> {
+                         private boost::noncopyable,
+                         private util::ObjectCounter<ModelBiasWRFJEDI> {
  public:
   static const std::string classname() {return "wrfjedi::ModelBiasWRFJEDI";}
 

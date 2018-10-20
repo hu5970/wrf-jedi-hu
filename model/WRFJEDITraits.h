@@ -12,6 +12,7 @@
 
 #include "ErrorCovarianceWRFJEDI.h"
 #include "GeometryWRFJEDI.h"
+#include "GetValuesTrajWRFJEDI.h"
 #include "IncrementWRFJEDI.h"
 #include "LocalizationMatrixWRFJEDI.h"
 #include "ModelWRFJEDI.h"
@@ -20,12 +21,15 @@
 #include "ModelBiasCovarianceWRFJEDI.h"
 #include "StateWRFJEDI.h"
 #include "ufo/GeoVaLs.h"
-#include "ufo/Locations.h"
-#include "ufo/ObsSpace.h"
-#include "ufo/ObsVector.h"
+#include "ioda/Locations.h"
+#include "ioda/ObsSpace.h"
+#include "ioda/ObsVector.h"
 #include "ufo/ObsBias.h"
 #include "ufo/ObsBiasIncrement.h"
 #include "ufo/ObsBiasCovariance.h"
+#include "ufo/ObsCheck.h"
+#include "ufo/ObsOperator.h"
+#include "ufo/LinearObsOperator.h"
 
 namespace wrfjedi {
 
@@ -36,7 +40,6 @@ struct WRFJEDITraits {
   typedef wrfjedi::GeometryWRFJEDI             Geometry;
 
   typedef wrfjedi::StateWRFJEDI                State;
-  typedef wrfjedi::ModelWRFJEDI                Model;
   typedef wrfjedi::IncrementWRFJEDI            Increment;
   typedef wrfjedi::ErrorCovarianceWRFJEDI      Covariance;
 
@@ -46,15 +49,20 @@ struct WRFJEDITraits {
 
   typedef wrfjedi::LocalizationMatrixWRFJEDI   LocalizationMatrix;
 
-  typedef ufo::ObsSpace                    ObsSpace;
-  typedef ufo::ObsVector                   ObsVector;
+  typedef wrfjedi::GetValuesTrajWRFJEDI        InterpolatorTraj;
 
-  typedef ufo::ObsBias                     ObsAuxControl;
-  typedef ufo::ObsBiasIncrement            ObsAuxIncrement;
-  typedef ufo::ObsBiasCovariance           ObsAuxCovariance;
+  typedef ufo::ObsOperator                     ObsOperator;
+  typedef ufo::LinearObsOperator               LinearObsOperator;
+  typedef ufo::ObsSpace                        ObsSpace;
+  typedef ufo::ObsVector                       ObsVector;
 
-  typedef ufo::GeoVaLs                     GeoVaLs;
-  typedef ufo::Locations                   Locations;
+  typedef ufo::ObsBias                         ObsAuxControl;
+  typedef ufo::ObsBiasIncrement                ObsAuxIncrement;
+  typedef ufo::ObsBiasCovariance               ObsAuxCovariance;
+  typedef ufo::ObsCheck                        ObsCheck;
+
+  typedef ufo::GeoVaLs                         GeoVaLs;
+  typedef ufo::Locations                       Locations;
 };
 
 }  // namespace wrfjedi

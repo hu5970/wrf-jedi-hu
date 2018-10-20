@@ -10,14 +10,17 @@
 
 #include <ostream>
 #include <string>
+
 #include <boost/noncopyable.hpp>
 #include <boost/scoped_ptr.hpp>
 
 #include "Fortran.h"
 #include "GeometryWRFJEDI.h"
-#include "util/Duration.h"
-#include "util/ObjectCounter.h"
-#include "util/Printable.h"
+#include "oops/base/ModelBase.h"
+#include "oops/base/Variables.h"
+#include "oops/util/Duration.h"
+#include "oops/util/ObjectCounter.h"
+#include "oops/util/Printable.h"
 
 // Forward declarations
 namespace eckit {
@@ -35,8 +38,7 @@ namespace wrfjedi {
  *  WRFJEDI nonlinear model definition and configuration parameters.
  */
 
-class ModelWRFJEDI: public util::Printable,
-               private boost::noncopyable,
+class ModelWRFJEDI: public oops::ModelBase<WRFJEDITraits>,
                private util::ObjectCounter<ModelWRFJEDI> {
  public:
   static const std::string classname() {return "wrfjedi::ModelWRFJEDI";}
@@ -56,12 +58,14 @@ class ModelWRFJEDI: public util::Printable,
 
 /// Utilities
   const util::Duration & timeResolution() const {return tstep_;}
+  const oops::Variables & variables() const {return vars_;}
 
  private:
   void print(std::ostream &) const;
   F90model keyConfig_;
   util::Duration tstep_;
   const GeometryWRFJEDI geom_;
+  const oops::Variables vars_;
 };
 // -----------------------------------------------------------------------------
 
