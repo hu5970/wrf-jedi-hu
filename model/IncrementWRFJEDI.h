@@ -17,11 +17,11 @@
 #include "FieldsWRFJEDI.h"
 #include "GeometryWRFJEDI.h"
 #include "oops/base/GeneralizedDepartures.h"
-#include "util/DateTime.h"
-#include "util/Duration.h"
-#include "util/ObjectCounter.h"
-#include "util/Printable.h"
-#include "util/dot_product.h"
+#include "oops/util/DateTime.h"
+#include "oops/util/Duration.h"
+#include "oops/util/ObjectCounter.h"
+#include "oops/util/Printable.h"
+#include "oops/util/dot_product.h"
 
 namespace eckit {
   class Configuration;

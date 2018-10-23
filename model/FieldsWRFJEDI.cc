@@ -20,7 +20,7 @@
 #include "oops/util/Logger.h"
 #include "Fortran.h"
 #include "GeometryWRFJEDI.h"
-#include "GetValuesTrajMPAS.h"
+#include "GetValuesTrajWRFJEDI.h"
 #include "oops/util/DateTime.h"
 
 // -----------------------------------------------------------------------------
@@ -192,6 +192,10 @@ void FieldsWRFJEDI::read(const eckit::Configuration & config) {
   const eckit::Configuration * conf = &config;
   util::DateTime * dtp = &time_;
   //wrfjedi_field_read_file_f90(keyFlds_, &conf, &dtp);
+  // set a time for testing now, this time should be read from file
+  oops::Log::trace() << "FieldsWRFJEDI::FieldsWRFJEDI read in ..." << std::endl;
+//  dtp->set("20180415000000");
+  oops::Log::trace() << "FieldsWRFJEDI::FieldsWRFJEDI end read ..." << std::endl;
 }
 // -----------------------------------------------------------------------------
 // -----------------------------------------------------------------------------
@@ -200,7 +204,7 @@ void FieldsWRFJEDI::analytic_init(const eckit::Configuration & config,
   const eckit::Configuration * conf = &config;
   util::DateTime * dtp = &time_;
 // JJG: Need to check if geometry is initialized before this!!!
-  wrfjedi_field_analytic_init_f90(keyFlds_, geom.toFortran(), &conf, &dtp);
+//  wrfjedi_field_analytic_init_f90(keyFlds_, geom.toFortran(), &conf, &dtp);
 }
 // -----------------------------------------------------------------------------
 void FieldsWRFJEDI::write(const eckit::Configuration & config) const {

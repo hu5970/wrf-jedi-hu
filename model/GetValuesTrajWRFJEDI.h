@@ -34,4 +34,4 @@ class GetValuesTrajWRFJEDI : public util::Printable {
 
 }  // namespace wrfjedi
 
-#endif  // MODEL_GETVALUESTRAJMPAS_H_
+#endif  // MODEL_GETVALUESTRAJWRFJEDI_H_

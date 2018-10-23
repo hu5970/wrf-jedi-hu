@@ -16,6 +16,7 @@
 
 #include "Fortran.h"
 #include "GeometryWRFJEDI.h"
+#include "WRFJEDITraits.h"
 #include "oops/base/ModelBase.h"
 #include "oops/base/Variables.h"
 #include "oops/util/Duration.h"

@@ -5,14 +5,13 @@
  * which can be obtained at http://www.apache.org/licenses/LICENSE-2.0. 
  */
 
-#include "RunWRFJEDI.h"
-#include "oops/runs/HofX.h"
 #include "WRFJEDITraits.h"
+#include "oops/runs/Forecast.h"
+#include "RunWRFJEDI.h"
 
 int main(int argc,  char ** argv) {
   wrfjedi::RunWRFJEDI run(argc, argv);
-  oops::HofX<wrfjedi::WRFJEDITraits> hofx;
-  run.execute(hofx);
+  oops::Forecast<wrfjedi::WRFJEDITraits> fc;
+  run.execute(fc);
   return 0;
-};
-
+}

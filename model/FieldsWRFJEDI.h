@@ -90,7 +90,7 @@ class FieldsWRFJEDI : public util::Printable,
 
 // Utilities
   void read(const eckit::Configuration &);
-  void analytic_init(const eckit::Configuration &, const GeometryMPAS &);
+  void analytic_init(const eckit::Configuration &, const GeometryWRFJEDI &);
   void write(const eckit::Configuration &) const;
   double norm() const;
   boost::shared_ptr<const GeometryWRFJEDI> geometry() const {return geom_;}

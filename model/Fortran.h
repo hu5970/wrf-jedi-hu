@@ -199,6 +199,7 @@ extern "C" {
   void wrfjedi_loc_delete_f90(F90locs &);
   void wrfjedi_loc_nobs_f90(const F90locs &, int &);
 
+}
 // -----------------------------------------------------------------------------
 
 }  // namespace wrfjedi

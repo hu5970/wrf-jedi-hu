@@ -1,10 +1,12 @@
 list( APPEND wrf_test_input
   testinput/hofx.json
+  testinput/forecast.json
   compare.sh
 )
 
 list( APPEND wrf_testoutput
   testoutput/hofx.test
+  testoutput/forecast.test
 )
 
 # This line copies all files to binary dir
@@ -67,5 +69,14 @@ ecbuild_add_test( TARGET  test_wrf_hofx
                   COMMAND "compare.sh"
                   ARGS "${CMAKE_BINARY_DIR}/bin/wrfjedi_hofx.x testinput/hofx.json"
                        testoutput/hofx.test
+                  MPI     1
                   DEPENDS wrfjedi_hofx.x )
+
+ecbuild_add_test( TARGET test_wrfjedi_forecast
+                  TYPE SCRIPT
+                  COMMAND "compare.sh"
+                  ARGS "${CMAKE_BINARY_DIR}/bin/wrfjedi_forecast.x testinput/forecast.json"
+                       testoutput/forecast.test
+                  MPI     1
+                  DEPENDS wrfjedi_forecast.x )
 

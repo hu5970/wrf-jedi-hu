@@ -26,7 +26,7 @@ namespace wrfjedi {
 // -----------------------------------------------------------------------------
 ModelWRFJEDI::ModelWRFJEDI(const GeometryWRFJEDI & resol, 
                            const eckit::Configuration & model)
-  : keyConfig_(0), tstep_(0), geom_(resol)
+  : keyConfig_(0), tstep_(0), geom_(resol),
     vars_(std::vector<std::string>{"temperature", "pressure", "index_qv",
                               "uReconstructZonal", "uReconstructMeridional"})
 {

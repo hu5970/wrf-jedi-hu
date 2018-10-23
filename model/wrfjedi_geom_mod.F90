@@ -1,0 +1,320 @@
+! (C) Copyright 2017 UCAR
+! 
+! This software is licensed under the terms of the Apache Licence Version 2.0
+! which can be obtained at http://www.apache.org/licenses/LICENSE-2.0. 
+
+module wrfjedi_geom_mod
+
+use iso_c_binding
+use config_mod
+!use type_mpl, only: mpl
+
+use wrfjedi_derived_types
+use wrfjedi_kind_types
+use wrfjedi_constants
+use wrfjedi_kinds, only : kind_real
+use wrfjedi_dmpar, only: wrfjedi_dmpar_sum_int
+use wrfjedi_subdriver
+use atm_core
+use wrfjedi_pool_routines
+use wrfjedi_run_mod, only : run_corelist=>corelist, run_domain=>domain
+
+
+implicit none
+private
+public :: wrfjedi_geom, &
+        & geo_setup, geo_clone, geo_delete, geo_info
+public :: wrfjedi_geom_registry
+
+
+! ------------------------------------------------------------------------------
+
+!> Fortran derived type to hold geometry definition
+type :: wrfjedi_geom
+   integer :: nCellsGlobal !Global count
+   integer :: nEdgesGlobal !Global count
+   integer :: nVerticesGlobal !Global count
+   integer :: nCells !Memory count (Local + Halo)
+   integer :: nEdges !Memory count (Local + Halo)
+   integer :: nVertices !Memory count (Local + Halo)
+   integer :: nCellsSolve !Local count
+   integer :: nEdgesSolve !Local count
+   integer :: nVerticesSolve !Local count
+   integer :: nVertLevels
+   integer :: nVertLevelsP1
+   integer :: nSoilLevels
+   integer :: vertexDegree
+   integer :: maxEdges
+   character(len=StrKIND) :: gridfname
+   real(kind=kind_real), DIMENSION(:),   ALLOCATABLE :: latCell, lonCell
+   real(kind=kind_real), DIMENSION(:),   ALLOCATABLE :: areaCell
+   real(kind=kind_real), DIMENSION(:),   ALLOCATABLE :: latEdge, lonEdge
+   real(kind=kind_real), DIMENSION(:,:), ALLOCATABLE :: edgeNormalVectors
+   real(kind=kind_real), DIMENSION(:,:), ALLOCATABLE :: zgrid
+   integer, allocatable :: nEdgesOnCell(:)
+   integer, allocatable :: cellsOnCell(:,:)
+   integer, allocatable :: edgesOnCell(:,:)
+
+   type (domain_type), pointer :: domain => null() 
+   type (core_type), pointer :: corelist => null()
+end type wrfjedi_geom
+
+#define LISTED_TYPE wrfjedi_geom
+
+!> Linked list interface - defines registry_t type
+#include "linkedList_i.f"
+
+!> Global registry
+type(registry_t) :: wrfjedi_geom_registry
+
+! ------------------------------------------------------------------------------
+contains
+! ------------------------------------------------------------------------------
+!> Linked list implementation
+#include "linkedList_c.f"
+
+! ------------------------------------------------------------------------------
+subroutine geo_setup(self, c_conf)
+
+   implicit none
+
+   type(wrfjedi_geom), intent(inout) :: self
+   type(c_ptr), intent(in) :: c_conf
+   character(len=StrKIND) :: string1
+   real(kind=kind_real), parameter :: deg2rad = pii/180.0_kind_real
+
+   type (wrfjedi_pool_type), pointer :: meshPool, fg
+   type (block_type), pointer :: block_ptr
+
+   real (kind=kind_real), pointer :: r1d_ptr(:), r2d_ptr(:,:)
+   integer, pointer :: i0d_ptr, i1d_ptr(:), i2d_ptr(:,:)
+
+   write(*,*)' ==> create geom'
+
+   self % corelist => run_corelist
+   self % domain   => run_domain
+
+   if (associated(self % domain)) then
+       write(*,*)'inside geom: geom % domain associated'
+   end if
+   if (associated(self % corelist)) then
+       write(*,*)'inside geom: geom % corelist associated'
+   else
+       write(*,*)'inside geom: geom % corelist not associated'
+   end if
+
+   !  These pool accesses refer to memory (local+halo) for a single MPAS block (standard)
+   block_ptr => self % domain % blocklist
+
+   call wrfjedi_pool_get_subpool ( block_ptr % structs, 'mesh', meshPool )
+
+   call wrfjedi_pool_get_dimension ( block_ptr % dimensions, 'nCells', i0d_ptr )         
+   self % nCells = i0d_ptr
+   call wrfjedi_pool_get_dimension ( block_ptr % dimensions, 'nCellsSolve', i0d_ptr )    
+   self % nCellsSolve = i0d_ptr
+   call wrfjedi_dmpar_sum_int ( self % domain % dminfo, &
+                             self % nCellsSolve, self % nCellsGlobal )
+
+   call wrfjedi_pool_get_dimension ( block_ptr % dimensions, 'nEdges', i0d_ptr )         
+   self % nEdges = i0d_ptr
+   call wrfjedi_pool_get_dimension ( block_ptr % dimensions, 'nEdgesSolve', i0d_ptr )    
+   self % nEdgesSolve = i0d_ptr
+   call wrfjedi_dmpar_sum_int ( self % domain % dminfo, &
+                             self % nEdgesSolve, self % nEdgesGlobal )
+
+   call wrfjedi_pool_get_dimension ( block_ptr % dimensions, 'nVertices', i0d_ptr )      
+   self % nVertices = i0d_ptr
+   call wrfjedi_pool_get_dimension ( block_ptr % dimensions, 'nVerticesSolve', i0d_ptr ) 
+   self % nVerticesSolve = i0d_ptr
+   call wrfjedi_dmpar_sum_int ( self % domain % dminfo, &
+                             self % nVerticesSolve, self % nVerticesGlobal )
+
+   call wrfjedi_pool_get_dimension ( block_ptr % dimensions, 'nVertLevels', i0d_ptr )    
+   self % nVertLevels = i0d_ptr
+   call wrfjedi_pool_get_dimension ( block_ptr % dimensions, 'nVertLevelsP1', i0d_ptr )  
+   self % nVertLevelsP1 = i0d_ptr
+   call wrfjedi_pool_get_dimension ( block_ptr % dimensions, 'nSoilLevels', i0d_ptr )    
+   self % nSoilLevels = i0d_ptr
+   call wrfjedi_pool_get_dimension ( block_ptr % dimensions, 'vertexDegree', i0d_ptr )   
+   self % vertexDegree = i0d_ptr
+   call wrfjedi_pool_get_dimension ( block_ptr % dimensions, 'maxEdges', i0d_ptr )       
+   self % maxEdges = i0d_ptr
+
+
+!  Could make this more flexible/clean by using pointers for array variables in wrfjedi_geom 
+!  + any later value modifications need to be consistent with MPAS model (e.g., no unit conversions)
+!  + would need to nullify instead of allocate/dellocate
+   allocate ( self % latCell ( self % nCells ) )
+   allocate ( self % lonCell ( self % nCells ) )
+   allocate ( self % latEdge ( self % nEdges ) )
+   allocate ( self % lonEdge ( self % nEdges ) )
+   allocate ( self % areaCell ( self % nCells ) )
+   allocate ( self % edgeNormalVectors (3,  self % nEdges ) )
+   allocate ( self % zgrid ( self % nVertLevelsP1, self % nCells ) )
+   allocate ( self % nEdgesOnCell ( self % nCells ) )
+   allocate ( self % edgesOnCell ( self % maxEdges, self % nCells ) )
+   allocate ( self % cellsOnCell ( self % maxEdges, self % nCells ) )
+
+   call wrfjedi_pool_get_array ( meshPool, 'latCell', r1d_ptr )           
+   self % latCell = r1d_ptr(1:self % nCells)
+   call wrfjedi_pool_get_array ( meshPool, 'lonCell', r1d_ptr )           
+   self % lonCell = r1d_ptr(1:self % nCells)
+   call wrfjedi_pool_get_array ( meshPool, 'areaCell', r1d_ptr )          
+   self % areaCell = r1d_ptr(1:self % nCells)
+   call wrfjedi_pool_get_array ( meshPool, 'latEdge', r1d_ptr )           
+   self % latEdge = r1d_ptr(1:self % nEdges)
+   call wrfjedi_pool_get_array ( meshPool, 'lonEdge', r1d_ptr )           
+   self % lonEdge = r1d_ptr(1:self % nEdges)
+   call wrfjedi_pool_get_array ( meshPool, 'edgeNormalVectors', r2d_ptr ) 
+   self % edgeNormalVectors = r2d_ptr ( 1:3, 1:self % nEdges )
+   call wrfjedi_pool_get_array ( meshPool, 'nEdgesOnCell', i1d_ptr )
+   self % nEdgesOnCell = i1d_ptr(1:self % nCells)
+   call wrfjedi_pool_get_array ( meshPool, 'edgesOnCell', i2d_ptr )
+   self % edgesOnCell = i2d_ptr ( 1:self % maxEdges, 1:self % nCells )
+   call wrfjedi_pool_get_array ( meshPool, 'cellsOnCell', i2d_ptr )
+   self % cellsOnCell = i2d_ptr( 1:self % maxEdges, 1:self % nCells )
+
+   call wrfjedi_pool_get_array ( meshPool, 'zgrid', r2d_ptr )             
+   self % zgrid = r2d_ptr ( 1:self % nVertLevelsP1, 1:self % nCells )
+
+   !> radians to degrees (not here for now)
+   !self % latCell = self % latCell / deg2rad
+   !self % lonCell = self % lonCell / deg2rad
+   !self % latEdge = self % latEdge / deg2rad
+   !self % lonEdge = self % lonEdge / deg2rad
+
+
+   write(*,*)'End of geo_setup'
+
+end subroutine geo_setup
+
+! ------------------------------------------------------------------------------
+
+subroutine geo_clone(self, other)
+
+   implicit none
+
+   type(wrfjedi_geom), intent(in) :: self
+   type(wrfjedi_geom), intent(inout) :: other
+
+   write(*,*)'====> copy of geom array'
+   if (allocated(other%latCell)) then 
+      write(*,*)'Allocated array other%latCell'
+   else
+      write(*,*)'Not Allocated array other%latCell'
+   end if   
+
+   other % nCellsGlobal  = self % nCellsGlobal
+   other % nCells        = self % nCells
+   other % nCellsSolve   = self % nCellsSolve
+
+   other % nEdgesGlobal  = self % nEdgesGlobal
+   other % nEdges        = self % nEdges
+   other % nEdgesSolve   = self % nEdgesSolve
+
+   other % nVerticesGlobal  = self % nVerticesGlobal
+   other % nVertices        = self % nVertices
+   other % nVerticesSolve   = self % nVerticesSolve
+
+   other % nVertLevels   = self % nVertLevels
+   other % nVertLevelsP1 = self % nVertLevelsP1
+   other % nSoilLevels   = self % nSoilLevels 
+   other % vertexDegree  = self % vertexDegree
+   other % maxEdges      = self % maxEdges
+
+   if (.not.allocated(other % latCell)) allocate(other % latCell(self % nCells))
+   if (.not.allocated(other % lonCell)) allocate(other % lonCell(self % nCells))
+   if (.not.allocated(other % latEdge)) allocate(other % latEdge(self % nEdges))
+   if (.not.allocated(other % lonEdge)) allocate(other % lonEdge(self % nEdges))
+   if (.not.allocated(other % areaCell)) allocate(other % areaCell(self % nCells))
+   if (.not.allocated(other % edgeNormalVectors)) allocate(other % edgeNormalVectors(3, self % nEdges))
+   if (.not.allocated(other % zgrid)) allocate(other % zgrid(self % nVertLevelsP1, self % nCells))
+   if (.not.allocated(other % nEdgesOnCell)) allocate(other % nEdgesOnCell(self % nCells))
+   if (.not.allocated(other % edgesOnCell)) allocate(other % edgesOnCell(self % maxEdges, self % nCells))
+   if (.not.allocated(other % cellsOnCell)) allocate (other % cellsOnCell ( self % maxEdges, self % nCells ) )
+
+   other % latCell           = self % latCell
+   other % lonCell           = self % lonCell
+   other % areaCell          = self % areaCell
+   other % latEdge           = self % latEdge
+   other % lonEdge           = self % lonEdge
+   other % edgeNormalVectors = self % edgeNormalVectors
+   other % zgrid             = self % zgrid
+   other % nEdgesOnCell      = self % nEdgesOnCell
+   other % edgesOnCell       = self % edgesOnCell
+   other % cellsOnCell       = self % cellsOnCell
+
+   write(*,*)'====> copy of geom corelist and domain'
+
+   if ((associated(other % corelist)).and.(associated(other % domain))) then 
+      write(*,*)'associated(other % corelist), associated(other % domain)'
+   else
+      write(*,*)'not associated(other % corelist), associated(other % domain)'
+      other % corelist => run_corelist
+      other % domain   => run_domain
+   end if
+
+   write(*,*)'====> copy of geom done'
+
+end subroutine geo_clone
+
+! ------------------------------------------------------------------------------
+
+subroutine geo_delete(self)
+
+   implicit none
+
+   type(wrfjedi_geom), intent(inout) :: self
+
+   write(*,*)'==> delete geom array'
+   if (allocated(self%latCell)) deallocate(self%latCell)
+   if (allocated(self%lonCell)) deallocate(self%lonCell)
+   if (allocated(self%latEdge)) deallocate(self%latEdge)
+   if (allocated(self%lonEdge)) deallocate(self%lonEdge)
+   if (allocated(self%areaCell)) deallocate(self%areaCell)
+   if (allocated(self%edgeNormalVectors)) deallocate(self%edgeNormalVectors)
+   if (allocated(self%zgrid)) deallocate(self%zgrid)
+   if (allocated(self%nEdgesOnCell)) deallocate(self%nEdgesOnCell)
+   if (allocated(self%edgesOnCell)) deallocate(self%edgesOnCell)
+   if (allocated(self%cellsOnCell)) deallocate(self%cellsOnCell)
+
+   !call wrfjedi_timer_set_context( self % domain )
+   if ((associated(self % corelist)).and.(associated(self % domain))) then
+      nullify(self % corelist)
+      nullify(self % domain)
+      write(*,*)'==> nullify geom corelist and domain'
+   end if
+   write(*,*)'==> delete geom done'
+
+end subroutine geo_delete
+
+! ------------------------------------------------------------------------------
+
+subroutine geo_info(self, nCellsGlobal, nCells, nCellsSolve, &
+                          nEdgesGlobal, nEdges, nEdgesSolve, &
+                          nVertLevels, nVertLevelsP1)
+
+   implicit none
+
+   type(wrfjedi_geom), intent(in) :: self
+   integer, intent(inout) :: nCellsGlobal, nCells, nCellsSolve
+   integer, intent(inout) :: nEdgesGlobal, nEdges, nEdgesSolve
+   integer, intent(inout) :: nVertLevels
+   integer, intent(inout) :: nVertLevelsP1
+
+   nCellsGlobal  = self%nCellsGlobal
+   nCells        = self%nCells
+   nCellsSolve   = self%nCellsSolve
+
+   nEdgesGlobal  = self%nEdgesGlobal
+   nEdges        = self%nEdges
+   nEdgesSolve   = self%nEdgesSolve
+
+   nVertLevels   = self%nVertLevels
+   nVertLevelsP1 = self%nVertLevelsP1
+
+end subroutine geo_info
+
+! ------------------------------------------------------------------------------
+
+end module wrfjedi_geom_mod

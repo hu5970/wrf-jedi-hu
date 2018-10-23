@@ -15,7 +15,7 @@
 #include "GetValuesTrajWRFJEDI.h"
 #include "IncrementWRFJEDI.h"
 #include "LocalizationMatrixWRFJEDI.h"
-#include "ModelWRFJEDI.h"
+//#include "ModelWRFJEDI.h"
 #include "ModelBiasWRFJEDI.h"
 #include "ModelBiasIncrementWRFJEDI.h"
 #include "ModelBiasCovarianceWRFJEDI.h"
@@ -43,6 +43,7 @@ struct WRFJEDITraits {
   typedef wrfjedi::IncrementWRFJEDI            Increment;
   typedef wrfjedi::ErrorCovarianceWRFJEDI      Covariance;
 
+  //typedef wrfjedi::ModelWRFJEDI                Model;
   typedef wrfjedi::ModelBiasWRFJEDI            ModelAuxControl;
   typedef wrfjedi::ModelBiasIncrementWRFJEDI   ModelAuxIncrement;
   typedef wrfjedi::ModelBiasCovarianceWRFJEDI  ModelAuxCovariance;
@@ -53,8 +54,8 @@ struct WRFJEDITraits {
 
   typedef ufo::ObsOperator                     ObsOperator;
   typedef ufo::LinearObsOperator               LinearObsOperator;
-  typedef ufo::ObsSpace                        ObsSpace;
-  typedef ufo::ObsVector                       ObsVector;
+  typedef ioda::ObsSpace                       ObsSpace;
+  typedef ioda::ObsVector                      ObsVector;
 
   typedef ufo::ObsBias                         ObsAuxControl;
   typedef ufo::ObsBiasIncrement                ObsAuxIncrement;
@@ -62,7 +63,7 @@ struct WRFJEDITraits {
   typedef ufo::ObsCheck                        ObsCheck;
 
   typedef ufo::GeoVaLs                         GeoVaLs;
-  typedef ufo::Locations                       Locations;
+  typedef ioda::Locations                      Locations;
 };
 
 }  // namespace wrfjedi

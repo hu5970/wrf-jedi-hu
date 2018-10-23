@@ -23,8 +23,8 @@
 #include "ModelWRFJEDI.h"
 #include "oops/base/Variables.h"
 #include "oops/generic/UnstructuredGrid.h"
-#include "util/DateTime.h"
-#include "util/Duration.h"
+#include "oops/util/DateTime.h"
+#include "oops/util/Duration.h"
 
 namespace wrfjedi {
 
@@ -40,7 +40,8 @@ StateWRFJEDI::StateWRFJEDI(const GeometryWRFJEDI & resol, const oops::Variables 
 // -----------------------------------------------------------------------------
 StateWRFJEDI::StateWRFJEDI(const GeometryWRFJEDI & resol, const oops::Variables & vars,
                            const eckit::Configuration & file)
-  : fields_(new FieldsWRFJEDI(resol, vars, util::DateTime())), stash_()
+  : fields_(new FieldsWRFJEDI(resol, vars, util::DateTime(2018,04,15,00,00,00))), stash_()
+//  : fields_(new FieldsWRFJEDI(resol, vars, util::DateTime())), stash_()
 {
   if (file.has("analytic_init"))
     fields_->analytic_init(file, resol);

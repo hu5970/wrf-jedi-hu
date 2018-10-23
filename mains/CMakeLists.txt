@@ -4,3 +4,7 @@ ecbuild_add_executable( TARGET  wrfjedi_hofx.x
                         LIBS    wrf-jedi
                       )
 
+ecbuild_add_executable( TARGET  wrfjedi_forecast.x
+                        SOURCES wrfjediForecast.cc
+                        LIBS    wrf-jedi
+                      )
