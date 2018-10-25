@@ -18,12 +18,18 @@ StateWRFJEDI.cc
 FieldsWRFJEDI.cc
 wrfjedi_kinds_mod.F90
 wrfjedi_run_mod.F90
-wrfjedi_init.f90
-wrfjedi_run.f90
+#wrfjedi_init.f90
+#wrfjedi_run.f90
 wrfjedi_finalize.f90
 wrfjedi_module_integrate.f90
-#wrfjedi_geom_mod.F90
-#wrfjedi_geom_interface.F90
+wrfjedi_geom_mod.F90
+wrfjedi_geom_interface.F90
+wrfjedi_model_mod.F90
+wrfjedi_model_interface.F90
+wrfjedi_fields_mod.F90
+wrfjedi_fields_interface.F90
+wrfjedi_trajectories.F90
+wrfjedi_getvaltraj_mod.F90
 )
 
 #set ( WRFJEDI_LIBRARIES $ENV{WRFJEDI_LIBRARIES} )

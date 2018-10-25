@@ -6,18 +6,11 @@
 module wrfjedi_geom_mod
 
 use iso_c_binding
-use config_mod
-!use type_mpl, only: mpl
-
-use wrfjedi_derived_types
-use wrfjedi_kind_types
-use wrfjedi_constants
 use wrfjedi_kinds, only : kind_real
-use wrfjedi_dmpar, only: wrfjedi_dmpar_sum_int
-use wrfjedi_subdriver
-use atm_core
-use wrfjedi_pool_routines
-use wrfjedi_run_mod, only : run_corelist=>corelist, run_domain=>domain
+USE module_domain_type, only: domain
+USE module_configure, only : model_config_rec_type
+
+!use wrfjedi_run_mod, only : run_corelist=>corelist, run_domain=>domain
 
 
 implicit none
@@ -31,32 +24,15 @@ public :: wrfjedi_geom_registry
 
 !> Fortran derived type to hold geometry definition
 type :: wrfjedi_geom
-   integer :: nCellsGlobal !Global count
-   integer :: nEdgesGlobal !Global count
-   integer :: nVerticesGlobal !Global count
-   integer :: nCells !Memory count (Local + Halo)
-   integer :: nEdges !Memory count (Local + Halo)
-   integer :: nVertices !Memory count (Local + Halo)
-   integer :: nCellsSolve !Local count
-   integer :: nEdgesSolve !Local count
-   integer :: nVerticesSolve !Local count
-   integer :: nVertLevels
-   integer :: nVertLevelsP1
-   integer :: nSoilLevels
-   integer :: vertexDegree
-   integer :: maxEdges
-   character(len=StrKIND) :: gridfname
-   real(kind=kind_real), DIMENSION(:),   ALLOCATABLE :: latCell, lonCell
-   real(kind=kind_real), DIMENSION(:),   ALLOCATABLE :: areaCell
-   real(kind=kind_real), DIMENSION(:),   ALLOCATABLE :: latEdge, lonEdge
-   real(kind=kind_real), DIMENSION(:,:), ALLOCATABLE :: edgeNormalVectors
-   real(kind=kind_real), DIMENSION(:,:), ALLOCATABLE :: zgrid
-   integer, allocatable :: nEdgesOnCell(:)
-   integer, allocatable :: cellsOnCell(:,:)
-   integer, allocatable :: edgesOnCell(:,:)
+   integer :: max_dom
+   integer,DIMENSION(:), ALLOCATABLE :: e_we 
+   integer,DIMENSION(:), ALLOCATABLE :: e_sn
+   integer,DIMENSION(:), ALLOCATABLE :: e_vert
+!   real(kind=kind_real),DIMENSION(:), ALLOCATABLE :: dx
+!   real(kind=kind_real),DIMENSION(:), ALLOCATABLE :: dy
 
-   type (domain_type), pointer :: domain => null() 
-   type (core_type), pointer :: corelist => null()
+   type (domain), pointer :: wrfjedi_head_grid => null() 
+   type (model_config_rec_type), pointer :: wrfjedi_model_config_rec => null()
 end type wrfjedi_geom
 
 #define LISTED_TYPE wrfjedi_geom
@@ -68,6 +44,20 @@ end type wrfjedi_geom
 type(registry_t) :: wrfjedi_geom_registry
 
 ! ------------------------------------------------------------------------------
+!   INTERFACE
+!
+!     SUBROUTINE wrfjedi_run(wrfjedi_head_grid)
+!        USE module_domain_type,   only : domain
+!        TYPE(domain), pointer :: wrfjedi_head_grid
+!     END SUBROUTINE wrfjedi_run
+!
+!     SUBROUTINE wrfjedi_finalize(wrfjedi_head_grid)
+!        USE module_domain_type,   only : domain
+!        TYPE(domain), pointer :: wrfjedi_head_grid
+!     END SUBROUTINE wrfjedi_finalize
+!   END INTERFACE
+!
+! ------------------------------------------------------------------------------
 contains
 ! ------------------------------------------------------------------------------
 !> Linked list implementation
@@ -76,115 +66,64 @@ contains
 ! ------------------------------------------------------------------------------
 subroutine geo_setup(self, c_conf)
 
+   USE module_configure, only : model_config_rec
+
    implicit none
 
    type(wrfjedi_geom), intent(inout) :: self
    type(c_ptr), intent(in) :: c_conf
-   character(len=StrKIND) :: string1
-   real(kind=kind_real), parameter :: deg2rad = pii/180.0_kind_real
 
-   type (wrfjedi_pool_type), pointer :: meshPool, fg
-   type (block_type), pointer :: block_ptr
-
-   real (kind=kind_real), pointer :: r1d_ptr(:), r2d_ptr(:,:)
-   integer, pointer :: i0d_ptr, i1d_ptr(:), i2d_ptr(:,:)
+   integer :: max_dom
+   integer :: sd1,ed1,sd2,ed2,sd3,ed3
+   integer :: i
 
    write(*,*)' ==> create geom'
 
-   self % corelist => run_corelist
-   self % domain   => run_domain
+   call wrfjedi_geom_init(self%wrfjedi_head_grid,self%wrfjedi_model_config_rec)
 
-   if (associated(self % domain)) then
-       write(*,*)'inside geom: geom % domain associated'
+   if (associated(self % wrfjedi_head_grid)) then
+       write(*,*)'inside geom: geom % wrfjedi_head_grid associated'
    end if
-   if (associated(self % corelist)) then
-       write(*,*)'inside geom: geom % corelist associated'
+   if (associated(self % wrfjedi_model_config_rec)) then
+       write(*,*)'inside geom: geom % wrfjedi_model_config_rec associated'
    else
-       write(*,*)'inside geom: geom % corelist not associated'
+       write(*,*)'inside geom: geom % wrfjedi_model_config_rec not associated'
    end if
+ 
+! ------------------------------------------------------------------------------
+   max_dom = model_config_rec%max_dom
 
-   !  These pool accesses refer to memory (local+halo) for a single MPAS block (standard)
-   block_ptr => self % domain % blocklist
+   write(*,*) max_dom, model_config_rec%max_dom
 
-   call wrfjedi_pool_get_subpool ( block_ptr % structs, 'mesh', meshPool )
+   if(max_dom > 0 ) then
+      allocate(self%e_we(max_dom))
+      allocate(self%e_sn(max_dom))
+      allocate(self%e_vert(max_dom))
+   
+      do i=1,max_dom
+         sd1=model_config_rec%s_we(i)
+         ed1=model_config_rec%e_we(i)
+         sd2=model_config_rec%s_sn(i)
+         ed2=model_config_rec%e_sn(i)
+         sd3=model_config_rec%s_vert(i)
+         ed3=model_config_rec%e_vert(i)
 
-   call wrfjedi_pool_get_dimension ( block_ptr % dimensions, 'nCells', i0d_ptr )         
-   self % nCells = i0d_ptr
-   call wrfjedi_pool_get_dimension ( block_ptr % dimensions, 'nCellsSolve', i0d_ptr )    
-   self % nCellsSolve = i0d_ptr
-   call wrfjedi_dmpar_sum_int ( self % domain % dminfo, &
-                             self % nCellsSolve, self % nCellsGlobal )
-
-   call wrfjedi_pool_get_dimension ( block_ptr % dimensions, 'nEdges', i0d_ptr )         
-   self % nEdges = i0d_ptr
-   call wrfjedi_pool_get_dimension ( block_ptr % dimensions, 'nEdgesSolve', i0d_ptr )    
-   self % nEdgesSolve = i0d_ptr
-   call wrfjedi_dmpar_sum_int ( self % domain % dminfo, &
-                             self % nEdgesSolve, self % nEdgesGlobal )
-
-   call wrfjedi_pool_get_dimension ( block_ptr % dimensions, 'nVertices', i0d_ptr )      
-   self % nVertices = i0d_ptr
-   call wrfjedi_pool_get_dimension ( block_ptr % dimensions, 'nVerticesSolve', i0d_ptr ) 
-   self % nVerticesSolve = i0d_ptr
-   call wrfjedi_dmpar_sum_int ( self % domain % dminfo, &
-                             self % nVerticesSolve, self % nVerticesGlobal )
-
-   call wrfjedi_pool_get_dimension ( block_ptr % dimensions, 'nVertLevels', i0d_ptr )    
-   self % nVertLevels = i0d_ptr
-   call wrfjedi_pool_get_dimension ( block_ptr % dimensions, 'nVertLevelsP1', i0d_ptr )  
-   self % nVertLevelsP1 = i0d_ptr
-   call wrfjedi_pool_get_dimension ( block_ptr % dimensions, 'nSoilLevels', i0d_ptr )    
-   self % nSoilLevels = i0d_ptr
-   call wrfjedi_pool_get_dimension ( block_ptr % dimensions, 'vertexDegree', i0d_ptr )   
-   self % vertexDegree = i0d_ptr
-   call wrfjedi_pool_get_dimension ( block_ptr % dimensions, 'maxEdges', i0d_ptr )       
-   self % maxEdges = i0d_ptr
-
-
-!  Could make this more flexible/clean by using pointers for array variables in wrfjedi_geom 
-!  + any later value modifications need to be consistent with MPAS model (e.g., no unit conversions)
-!  + would need to nullify instead of allocate/dellocate
-   allocate ( self % latCell ( self % nCells ) )
-   allocate ( self % lonCell ( self % nCells ) )
-   allocate ( self % latEdge ( self % nEdges ) )
-   allocate ( self % lonEdge ( self % nEdges ) )
-   allocate ( self % areaCell ( self % nCells ) )
-   allocate ( self % edgeNormalVectors (3,  self % nEdges ) )
-   allocate ( self % zgrid ( self % nVertLevelsP1, self % nCells ) )
-   allocate ( self % nEdgesOnCell ( self % nCells ) )
-   allocate ( self % edgesOnCell ( self % maxEdges, self % nCells ) )
-   allocate ( self % cellsOnCell ( self % maxEdges, self % nCells ) )
-
-   call wrfjedi_pool_get_array ( meshPool, 'latCell', r1d_ptr )           
-   self % latCell = r1d_ptr(1:self % nCells)
-   call wrfjedi_pool_get_array ( meshPool, 'lonCell', r1d_ptr )           
-   self % lonCell = r1d_ptr(1:self % nCells)
-   call wrfjedi_pool_get_array ( meshPool, 'areaCell', r1d_ptr )          
-   self % areaCell = r1d_ptr(1:self % nCells)
-   call wrfjedi_pool_get_array ( meshPool, 'latEdge', r1d_ptr )           
-   self % latEdge = r1d_ptr(1:self % nEdges)
-   call wrfjedi_pool_get_array ( meshPool, 'lonEdge', r1d_ptr )           
-   self % lonEdge = r1d_ptr(1:self % nEdges)
-   call wrfjedi_pool_get_array ( meshPool, 'edgeNormalVectors', r2d_ptr ) 
-   self % edgeNormalVectors = r2d_ptr ( 1:3, 1:self % nEdges )
-   call wrfjedi_pool_get_array ( meshPool, 'nEdgesOnCell', i1d_ptr )
-   self % nEdgesOnCell = i1d_ptr(1:self % nCells)
-   call wrfjedi_pool_get_array ( meshPool, 'edgesOnCell', i2d_ptr )
-   self % edgesOnCell = i2d_ptr ( 1:self % maxEdges, 1:self % nCells )
-   call wrfjedi_pool_get_array ( meshPool, 'cellsOnCell', i2d_ptr )
-   self % cellsOnCell = i2d_ptr( 1:self % maxEdges, 1:self % nCells )
-
-   call wrfjedi_pool_get_array ( meshPool, 'zgrid', r2d_ptr )             
-   self % zgrid = r2d_ptr ( 1:self % nVertLevelsP1, 1:self % nCells )
-
-   !> radians to degrees (not here for now)
-   !self % latCell = self % latCell / deg2rad
-   !self % lonCell = self % lonCell / deg2rad
-   !self % latEdge = self % latEdge / deg2rad
-   !self % lonEdge = self % lonEdge / deg2rad
-
-
+         self%e_we(i)=ed1-sd1+1
+         self%e_sn(i)=ed2-sd2+1
+         self%e_vert(i)=ed3-sd3+1
+      enddo
+!
+      write(*,*) 'max domain = ',max_dom
+      do i=1,max_dom
+         write(*,'(a,4I5)') 'domain=',i,self%e_we(i),self%e_sn(i),self%e_vert(i)
+      enddo
+   else
+      write(*,*) 'wrong max domain = ',max_dom
+   endif
    write(*,*)'End of geo_setup'
+
+!   call wrfjedi_run(self%wrfjedi_head_grid)
+!   call wrfjedi_finalize(self%wrfjedi_head_grid)
 
 end subroutine geo_setup
 
@@ -198,60 +137,24 @@ subroutine geo_clone(self, other)
    type(wrfjedi_geom), intent(inout) :: other
 
    write(*,*)'====> copy of geom array'
-   if (allocated(other%latCell)) then 
-      write(*,*)'Allocated array other%latCell'
+
+   other % max_dom = self % max_dom
+
+   if (.not.allocated(other % e_we)) allocate(other % e_we(self % max_dom))
+   if (.not.allocated(other % e_sn)) allocate(other % e_sn(self % max_dom))
+   if (.not.allocated(other % e_vert)) allocate(other % e_vert(self % max_dom))
+   other % e_we = self % e_we
+   other % e_sn = self % e_sn
+   other % e_vert = self % e_vert
+
+   write(*,*)'====> copy of geom wrfjedi_head_grid and wrfjedi_model_config_rec'
+
+   if ((associated(other % wrfjedi_head_grid)).and.(associated(other % wrfjedi_model_config_rec))) then 
+      write(*,*)'associated(other % wrfjedi_head_grid), associated(other % wrfjedi_model_config_rec)'
    else
-      write(*,*)'Not Allocated array other%latCell'
-   end if   
-
-   other % nCellsGlobal  = self % nCellsGlobal
-   other % nCells        = self % nCells
-   other % nCellsSolve   = self % nCellsSolve
-
-   other % nEdgesGlobal  = self % nEdgesGlobal
-   other % nEdges        = self % nEdges
-   other % nEdgesSolve   = self % nEdgesSolve
-
-   other % nVerticesGlobal  = self % nVerticesGlobal
-   other % nVertices        = self % nVertices
-   other % nVerticesSolve   = self % nVerticesSolve
-
-   other % nVertLevels   = self % nVertLevels
-   other % nVertLevelsP1 = self % nVertLevelsP1
-   other % nSoilLevels   = self % nSoilLevels 
-   other % vertexDegree  = self % vertexDegree
-   other % maxEdges      = self % maxEdges
-
-   if (.not.allocated(other % latCell)) allocate(other % latCell(self % nCells))
-   if (.not.allocated(other % lonCell)) allocate(other % lonCell(self % nCells))
-   if (.not.allocated(other % latEdge)) allocate(other % latEdge(self % nEdges))
-   if (.not.allocated(other % lonEdge)) allocate(other % lonEdge(self % nEdges))
-   if (.not.allocated(other % areaCell)) allocate(other % areaCell(self % nCells))
-   if (.not.allocated(other % edgeNormalVectors)) allocate(other % edgeNormalVectors(3, self % nEdges))
-   if (.not.allocated(other % zgrid)) allocate(other % zgrid(self % nVertLevelsP1, self % nCells))
-   if (.not.allocated(other % nEdgesOnCell)) allocate(other % nEdgesOnCell(self % nCells))
-   if (.not.allocated(other % edgesOnCell)) allocate(other % edgesOnCell(self % maxEdges, self % nCells))
-   if (.not.allocated(other % cellsOnCell)) allocate (other % cellsOnCell ( self % maxEdges, self % nCells ) )
-
-   other % latCell           = self % latCell
-   other % lonCell           = self % lonCell
-   other % areaCell          = self % areaCell
-   other % latEdge           = self % latEdge
-   other % lonEdge           = self % lonEdge
-   other % edgeNormalVectors = self % edgeNormalVectors
-   other % zgrid             = self % zgrid
-   other % nEdgesOnCell      = self % nEdgesOnCell
-   other % edgesOnCell       = self % edgesOnCell
-   other % cellsOnCell       = self % cellsOnCell
-
-   write(*,*)'====> copy of geom corelist and domain'
-
-   if ((associated(other % corelist)).and.(associated(other % domain))) then 
-      write(*,*)'associated(other % corelist), associated(other % domain)'
-   else
-      write(*,*)'not associated(other % corelist), associated(other % domain)'
-      other % corelist => run_corelist
-      other % domain   => run_domain
+      write(*,*)'not associated(other % wrfjedi_head_grid), associated(other % wrfjedi_model_config_rec)'
+      other % wrfjedi_head_grid => self%wrfjedi_head_grid
+      other % wrfjedi_model_config_rec => self%wrfjedi_model_config_rec 
    end if
 
    write(*,*)'====> copy of geom done'
@@ -267,22 +170,14 @@ subroutine geo_delete(self)
    type(wrfjedi_geom), intent(inout) :: self
 
    write(*,*)'==> delete geom array'
-   if (allocated(self%latCell)) deallocate(self%latCell)
-   if (allocated(self%lonCell)) deallocate(self%lonCell)
-   if (allocated(self%latEdge)) deallocate(self%latEdge)
-   if (allocated(self%lonEdge)) deallocate(self%lonEdge)
-   if (allocated(self%areaCell)) deallocate(self%areaCell)
-   if (allocated(self%edgeNormalVectors)) deallocate(self%edgeNormalVectors)
-   if (allocated(self%zgrid)) deallocate(self%zgrid)
-   if (allocated(self%nEdgesOnCell)) deallocate(self%nEdgesOnCell)
-   if (allocated(self%edgesOnCell)) deallocate(self%edgesOnCell)
-   if (allocated(self%cellsOnCell)) deallocate(self%cellsOnCell)
+   if (allocated(self % e_we)) deallocate(self % e_we)
+   if (allocated(self % e_sn)) deallocate(self % e_sn)
+   if (allocated(self % e_vert)) deallocate(self % e_vert)
 
-   !call wrfjedi_timer_set_context( self % domain )
-   if ((associated(self % corelist)).and.(associated(self % domain))) then
-      nullify(self % corelist)
-      nullify(self % domain)
-      write(*,*)'==> nullify geom corelist and domain'
+   if ((associated(self % wrfjedi_head_grid)).and.(associated(self % wrfjedi_model_config_rec))) then
+      nullify(self % wrfjedi_head_grid)
+      nullify(self % wrfjedi_head_grid)
+      write(*,*)'==> nullify geom wrfjedi_head_grid and wrfjedi_model_config_rec'
    end if
    write(*,*)'==> delete geom done'
 
@@ -290,31 +185,185 @@ end subroutine geo_delete
 
 ! ------------------------------------------------------------------------------
 
-subroutine geo_info(self, nCellsGlobal, nCells, nCellsSolve, &
-                          nEdgesGlobal, nEdges, nEdgesSolve, &
-                          nVertLevels, nVertLevelsP1)
+subroutine geo_info(self,domain_id, nx,ny,nz)
 
    implicit none
 
    type(wrfjedi_geom), intent(in) :: self
-   integer, intent(inout) :: nCellsGlobal, nCells, nCellsSolve
-   integer, intent(inout) :: nEdgesGlobal, nEdges, nEdgesSolve
-   integer, intent(inout) :: nVertLevels
-   integer, intent(inout) :: nVertLevelsP1
+   integer, intent(in) :: domain_id
+   integer, intent(inout) :: nx,ny,nz
 
-   nCellsGlobal  = self%nCellsGlobal
-   nCells        = self%nCells
-   nCellsSolve   = self%nCellsSolve
-
-   nEdgesGlobal  = self%nEdgesGlobal
-   nEdges        = self%nEdges
-   nEdgesSolve   = self%nEdgesSolve
-
-   nVertLevels   = self%nVertLevels
-   nVertLevelsP1 = self%nVertLevelsP1
+   nx  = self%e_we(domain_id)
+   ny  = self%e_sn(domain_id)
+   nz  = self%e_vert(domain_id)
 
 end subroutine geo_info
 
 ! ------------------------------------------------------------------------------
 
+ SUBROUTINE wrfjedi_geom_init(head_grid,wrfjedi_model_config_rec)
+
+   USE module_driver_constants
+   USE module_timing
+   USE module_wrf_error
+   USE module_domain_type, only: domain
+   USE module_domain, only: program_name,HISTORY_ALARM
+   USE module_domain, only: domain_get_stop_time,domain_get_start_time,&
+                            alloc_and_configure_domain,domain_get_current_time
+   USE module_domain, only: head_grid_dfi_stage,head_grid_id, &
+                            head_grid_current_time, &
+                            head_grid_start_subtime,head_grid_stop_subtime
+   USE module_configure, only : model_config_rec_type
+   USE module_configure, only : model_config_rec,grid_config_rec_type
+   USE module_configure, only : set_config_as_buffer,get_config_as_buffer,&
+                                initial_config,model_to_grid_config_rec
+   USE module_check_a_mundo, only : setup_physics_suite,set_physics_rconfigs,&
+                                    check_nml_consistency
+   USE module_state_description, only: DFI_NODFI,DFI_SETUP
+   USE module_symbols_util, ONLY: wrfu_cal_gregorian,WRFU_Initialize
+   USE module_dm, ONLY : wrf_dm_initialize,domain_active_this_task,mpi_comm_allcompute
+
+   IMPLICIT NONE
+
+!   TYPE (domain) , pointer :: wrfjedi_head_grid
+   TYPE (domain) , pointer :: head_grid
+   TYPE (model_config_rec_type), pointer :: wrfjedi_model_config_rec
+   TYPE (model_config_rec_type), target :: model_config_rec_tmp
+
+   TYPE (domain) , POINTER :: null_domain
+   TYPE (domain) , pointer :: parent_grid 
+   TYPE (grid_config_rec_type), SAVE :: config_flags
+   INTEGER        :: kid, nestid
+
+   INTEGER :: max_dom , domain_id , fid , oid , idum1 , idum2 , ierr
+   INTEGER :: debug_level
+
+   INTEGER                 :: nbytes
+   INTEGER, PARAMETER      :: configbuflen = 4* 65536
+   INTEGER                 :: configbuf( configbuflen )
+   LOGICAL , EXTERNAL      :: wrf_dm_on_monitor
+
+   INTEGER :: save_comm
+
+   INTERFACE 
+     SUBROUTINE Setup_Timekeeping( grid )
+      USE module_domain, only: domain
+      TYPE(domain), POINTER :: grid
+     END SUBROUTINE Setup_Timekeeping
+   END INTERFACE
+
+
+   CALL wrf_get_dm_communicator( save_comm )
+   CALL wrf_set_dm_communicator( mpi_comm_allcompute )
+   IF ( wrf_dm_on_monitor() ) THEN
+     CALL initial_config
+   ENDIF
+   CALL get_config_as_buffer( configbuf, configbuflen, nbytes )
+   CALL wrf_dm_bcast_bytes( configbuf, nbytes )
+   CALL set_config_as_buffer( configbuf, configbuflen )
+   CALL wrf_dm_initialize
+   CALL wrf_set_dm_communicator( save_comm )
+
+   CALL setup_physics_suite
+   CALL set_derived_rconfigs(model_config_rec)
+   CALL check_nml_consistency
+   CALL set_physics_rconfigs
+
+   CALL nl_get_debug_level ( 1, debug_level )
+   CALL set_wrf_debug_level ( debug_level )
+
+   NULLIFY( null_domain )
+
+   CALL nl_get_max_dom( 1, max_dom )
+
+   CALL       wrf_message ( program_name )
+   CALL       wrf_debug ( 100 , 'wrf: calling alloc_and_configure_domain ' )
+   CALL alloc_and_configure_domain ( domain_id  = 1 ,                  &
+                               active_this_task = domain_active_this_task(1), &
+                                     grid       = head_grid ,          &
+                                     parent     = null_domain ,        &
+                                     kid        = -1                   )
+
+   CALL       wrf_debug ( 100 , 'wrf: calling model_to_grid_config_rec ' )
+   CALL model_to_grid_config_rec ( head_grid%id , model_config_rec , config_flags )
+   CALL       wrf_debug ( 100 , 'wrf: calling set_scalar_indices_from_config ' )
+   CALL set_scalar_indices_from_config ( head_grid%id , idum1, idum2 )
+   CALL       wrf_debug ( 100 , 'wrf: calling init_wrfio' )
+   CALL init_wrfio
+
+   CALL wrf_get_dm_communicator( save_comm )
+   CALL wrf_set_dm_communicator( mpi_comm_allcompute )
+   CALL get_config_as_buffer( configbuf, configbuflen, nbytes )
+   CALL wrf_dm_bcast_bytes( configbuf, nbytes )
+   CALL set_config_as_buffer( configbuf, configbuflen )
+   CALL wrf_set_dm_communicator( save_comm )
+   
+   IF ( head_grid%dfi_opt .NE. DFI_NODFI ) head_grid%dfi_stage = DFI_SETUP
+   head_grid_dfi_stage=head_grid%dfi_stage
+   head_grid_id=head_grid%id
+
+   CALL Setup_Timekeeping (head_grid)
+   head_grid_current_time=domain_get_current_time(head_grid)
+
+   IF ( domain_active_this_task(1) ) THEN
+      CALL med_initialdata_input( head_grid , config_flags )
+
+      IF ( config_flags%write_restart_at_0h ) THEN
+         CALL med_restart_out ( head_grid, config_flags )
+         CALL med_hist_out ( head_grid , HISTORY_ALARM, config_flags )
+         CALL wrf_debug ( 0 , ' 0 h restart only wrf: SUCCESS COMPLETE WRF' )
+         CALL wrfjedi_finalize(head_grid)
+      END IF
+   ENDIF  
+
+   head_grid%start_subtime = domain_get_start_time ( head_grid )
+   head_grid%stop_subtime = domain_get_stop_time ( head_grid )
+   head_grid_start_subtime = domain_get_start_time ( head_grid )
+   head_grid_stop_subtime = domain_get_stop_time ( head_grid )
+
+   model_config_rec_tmp = model_config_rec
+   wrfjedi_model_config_rec => model_config_rec_tmp
+
+! ------------------------------------------------------------------------------
+   END SUBROUTINE wrfjedi_geom_init
+
+
+   SUBROUTINE set_derived_rconfigs(model_config_rec)
+
+      USE module_configure, only : model_config_rec_type
+      USE module_state_description, only : DFI_NODFI
+
+      IMPLICIT NONE
+
+      TYPE(model_config_rec_type),intent(inout) :: model_config_rec
+
+      INTEGER :: i
+
+
+
+      IF ( model_config_rec % dfi_opt .EQ. DFI_NODFI ) THEN
+        DO i = 1, model_config_rec % max_dom
+           model_config_rec % mp_physics_dfi(i) = -1
+        ENDDO
+      ELSE
+        DO i = 1, model_config_rec % max_dom
+           model_config_rec % mp_physics_dfi(i) = model_config_rec % mp_physics(i)
+        ENDDO
+      END IF
+
+
+      IF ( model_config_rec % dfi_opt .EQ. DFI_NODFI ) THEN
+        DO i = 1, model_config_rec % max_dom
+           model_config_rec % bl_pbl_physics_dfi(i) = -1
+        ENDDO
+      ELSE
+        DO i = 1, model_config_rec % max_dom
+           model_config_rec % bl_pbl_physics_dfi(i) = model_config_rec % bl_pbl_physics(i)
+        ENDDO
+      END IF
+
+
+   END SUBROUTINE set_derived_rconfigs
+
+! ------------------------------------------------------------------------------
 end module wrfjedi_geom_mod

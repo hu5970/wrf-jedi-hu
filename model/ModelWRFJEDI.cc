@@ -34,23 +34,28 @@ ModelWRFJEDI::ModelWRFJEDI(const GeometryWRFJEDI & resol,
   tstep_ = util::Duration(model.getString("tstep"));
   oops::Log::trace() << "ModelWRFJEDI::tstep_"<<tstep_<<std::endl;
   const eckit::Configuration * configc = &model;
-  //wrfjedi_model_setup_f90(&configc, geom_.toFortran(), keyConfig_);
+  wrfjedi_model_setup_f90(&configc, geom_.toFortran(), keyConfig_);
   oops::Log::trace() << "ModelWRFJEDI created" << std::endl;
 }
 // -----------------------------------------------------------------------------
 ModelWRFJEDI::~ModelWRFJEDI() {
-  //wrfjedi_model_delete_f90(keyConfig_);
+  wrfjedi_model_delete_f90(keyConfig_);
   oops::Log::trace() << "ModelWRFJEDI destructed" << std::endl;
 }
 // -----------------------------------------------------------------------------
 void ModelWRFJEDI::initialize(StateWRFJEDI & xx) const {
-  //wrfjedi_model_prepare_integration_f90(keyConfig_, xx.fields().toFortran());
+  wrfjedi_model_prepare_integration_f90(keyConfig_, xx.fields().toFortran());
   oops::Log::debug() << "ModelWRFJEDI::initialize" << xx.fields() << std::endl;
 }
 // -----------------------------------------------------------------------------
 void ModelWRFJEDI::step(StateWRFJEDI & xx, const ModelBiasWRFJEDI &) const {
+  util::DateTime * dtp = & xx.validTime();
+  util::DateTime  dtp_tmp;
+  util::DateTime * dtp_next;
   oops::Log::debug() << "ModelWRFJEDI::step fields in" << xx.fields() << std::endl;
-  //wrfjedi_model_propagate_f90(keyConfig_, xx.fields().toFortran());
+  dtp_tmp = xx.validTime() + tstep_;
+  dtp_next = & dtp_tmp;
+  wrfjedi_model_propagate_f90(keyConfig_, xx.fields().toFortran(), &dtp, &dtp_next);
   xx.validTime() += tstep_;
   oops::Log::debug() << "ModelWRFJEDI::step fields out" << xx.fields() << std::endl;
 }
@@ -63,7 +68,7 @@ int ModelWRFJEDI::saveTrajectory(StateWRFJEDI & xx, const ModelBiasWRFJEDI &) co
   int ftraj = 0;
   oops::Log::debug() << "ModelWRFJEDI::saveTrajectory fields in" << xx.fields() 
                      << std::endl;
-  //wrfjedi_model_prop_traj_f90(keyConfig_, xx.fields().toFortran(), ftraj);
+  wrfjedi_model_prop_traj_f90(keyConfig_, xx.fields().toFortran(), ftraj);
   ASSERT(ftraj != 0);
   oops::Log::debug() << "ModelWRFJEDI::saveTrajectory fields out" << xx.fields() 
                      << std::endl;

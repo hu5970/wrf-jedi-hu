@@ -6,8 +6,7 @@
 #include "eckit/config/Configuration.h"
 #include "Fortran.h"
 #include "oops/runs/Run.h"
-//#include "oops/util/Logger.h"
-#include "/vagrant_data/code/wrf-bundle/oops/src/oops/util/Logger.h"
+#include "oops/util/Logger.h"
 
 namespace wrfjedi {
 

@@ -57,25 +57,18 @@ end subroutine c_wrfjedi_geo_delete
 
 ! ------------------------------------------------------------------------------
 
-subroutine c_wrfjedi_geo_info(c_key_self, c_nCellsGlobal, c_nCells, c_nCellsSolve, &
-                                       c_nEdgesGlobal, c_nEdges, c_nEdgesSolve, &
-                                       c_nVertLevels, c_nVertLevelsP1) &
+subroutine c_wrfjedi_geo_info(c_key_self, domain_id,nx,ny,nz) &
                                        bind(c,name='wrfjedi_geo_info_f90')
 use iso_c_binding
 use wrfjedi_geom_mod
 implicit none
 integer(c_int), intent(in)    :: c_key_self
-integer(c_int), intent(inout) :: &
-   c_nCellsGlobal, c_nCells, c_nCellsSolve, &
-   c_nEdgesGlobal, c_nEdges, c_nEdgesSolve, &
-   c_nVertLevels, c_nVertLevelsP1
+integer(c_int), intent(in)    :: domain_id
+integer(c_int), intent(inout) :: nx,ny,nz
 
 type(wrfjedi_geom), pointer :: self
 
 call wrfjedi_geom_registry%get(c_key_self, self)
-call geo_info(self, c_nCellsGlobal, c_nCells, c_nCellsSolve, &
-                    c_nEdgesGlobal, c_nEdges, c_nEdgesSolve, &
-                    c_nVertLevels, c_nVertLevelsP1)
-
+call geo_info(self, domain_id,nx,ny,nz)
 
 end subroutine c_wrfjedi_geo_info

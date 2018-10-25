@@ -67,8 +67,7 @@ extern "C" {
 // -----------------------------------------------------------------------------
   void wrfjedi_geo_setup_f90(F90geom &, const eckit::Configuration * const *);
   void wrfjedi_geo_clone_f90(const F90geom &, F90geom &);
-  void wrfjedi_geo_info_f90(const F90geom &, int &, int &, int &, int &, int &,
-                         int &, int &, int &);
+  void wrfjedi_geo_info_f90(const F90geom &, int &, int &, int &, int &);
   void wrfjedi_geo_delete_f90(F90geom &);
 
 // -----------------------------------------------------------------------------
@@ -82,7 +81,8 @@ extern "C" {
   void wrfjedi_model_prepare_integration_tl_f90(const F90model &, const F90flds &);
   void wrfjedi_model_prepare_integration_ad_f90(const F90model &, const F90flds &);
 
-  void wrfjedi_model_propagate_f90(const F90model &, const F90flds &);
+  void wrfjedi_model_propagate_f90(const F90model &, const F90flds &, 
+                                   util::DateTime * const *,util::DateTime * const *);
   void wrfjedi_model_prop_traj_f90(const F90model &, const F90flds &, F90traj &);
   void wrfjedi_model_propagate_tl_f90(const F90model &, const F90flds &,
                                       const F90traj &);
@@ -144,8 +144,6 @@ extern "C" {
   void wrfjedi_field_gpnorm_f90(const F90flds &, const int &, double &);
   void wrfjedi_field_sizes_f90(const F90flds &, int &, int &, int &, int &);
   void wrfjedi_field_rms_f90(const F90flds &, double &);
-
-  void wrfjedi_field_dirac_f90(const F90flds &, const eckit::Configuration * const *);
 
   void wrfjedi_getvaltraj_setup_f90(const F90ootrj &);
   void wrfjedi_getvaltraj_delete_f90(const F90ootrj &);
