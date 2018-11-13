@@ -30,6 +30,9 @@ wrfjedi_fields_mod.F90
 wrfjedi_fields_interface.F90
 wrfjedi_trajectories.F90
 wrfjedi_getvaltraj_mod.F90
+wrfjedi_pool_routines.F90
+wrfjedi_derived_types.F90
+pool_hash.c
 )
 
 #set ( WRFJEDI_LIBRARIES $ENV{WRFJEDI_LIBRARIES} )
@@ -39,7 +42,7 @@ list(APPEND WRFJEDI_INCLUDES ${WRF_MODEL_PATH}/main ${WRF_MODEL_PATH}/frame ${WR
 
 set(WRFJEDI_LIBRARIES)
 SET(WRF_LIBS_EXTERNAL ${WRF_MODEL_PATH}/external/fftpack/fftpack5/libfftpack.a ${WRF_MODEL_PATH}/external/io_grib1/libio_grib1.a ${WRF_MODEL_PATH}/external/io_grib_share/libio_grib_share.a ${WRF_MODEL_PATH}/external/io_int/libwrfio_int.a ${WRF_MODEL_PATH}/external/esmf_time_f90/libesmf_time.a ${WRF_MODEL_PATH}/external/RSL_LITE/librsl_lite.a)
-SET(WRF_LIBS_NF -L${WRF_MODEL_PATH}/external/io_netcdf -lwrfio_nf -L/apps/netcdf/4.3.0-intel/lib -lnetcdff -lnetcdf -L${WRF_MODEL_PATH}/external/io_pnetcdf -lwrfio_pnf -L/apps/pnetcdf/1.5.0-intel-mvapich2/lib -lpnetcdf)
+SET(WRF_LIBS_NF -L${WRF_MODEL_PATH}/external/io_netcdf -lwrfio_nf -L$ENV{NETCDF}/lib -lnetcdff -lnetcdf -L${WRF_MODEL_PATH}/external/io_pnetcdf -lwrfio_pnf -L$ENV{NETCDF}/lib -lpnetcdf)
 
 list(APPEND WRFJEDI_LIBRARIES -L${WRF_MODEL_PATH}/main -lwrflib)
 list(APPEND WRFJEDI_LIBRARIES ${WRF_LIBS_EXTERNAL})

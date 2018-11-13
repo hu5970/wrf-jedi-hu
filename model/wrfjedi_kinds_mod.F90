@@ -8,7 +8,19 @@ module wrfjedi_kinds
   implicit none
 
   private
-  public kind_real
+  public kind_real,I8KIND,RKIND,StrKIND,ShortStrKIND
   
   integer, parameter :: kind_real=c_double
+
+  integer, parameter :: R4KIND = selected_real_kind(6)
+  integer, parameter :: R8KIND = selected_real_kind(12)
+
+  integer, parameter :: I8KIND = selected_int_kind(18)
+
+  integer, parameter :: RKIND=R4KIND
+
+  integer, parameter :: StrKIND = 512
+  integer, parameter :: ShortStrKIND = 64
+
+
 end module wrfjedi_kinds
