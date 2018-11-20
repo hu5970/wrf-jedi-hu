@@ -20,54 +20,172 @@
 module wrfjedi_derived_types
 
    use wrfjedi_kinds,      only : StrKIND, RKIND
+   use module_domain_type, only : fieldlist
+   private
+   public :: field2DReal,field2DInteger
 
+   type :: fieldhead
+      ! Information used by the I/O layer
+      CHARACTER*80    :: VarName
+      CHARACTER*1     :: Type
+      CHARACTER*1     :: ProcOrient  ! 'X' 'Y' or ' ' (X, Y, or non-transposed)
+      CHARACTER*80    :: DataName
+      CHARACTER*80    :: Description
+      CHARACTER*80    :: Units
+      CHARACTER*10    :: MemoryOrder
+      CHARACTER*10    :: Stagger
+      CHARACTER*80    :: dimname1
+      CHARACTER*80    :: dimname2
+      CHARACTER*80    :: dimname3
+      LOGICAL         :: scalar_array
+      INTEGER         :: Ndim
+
+      INTEGER :: sd1,ed1,sd2,ed2,sd3,ed3
+      INTEGER :: sm1,em1,sm2,em2,sm3,em3
+      INTEGER :: sp1,ep1,sp2,ep2,sp3,ep3
+      CHARACTER*80    :: MemberOf
+      
+      contains
+         procedure :: sendFieldHead 
+         procedure :: fillFieldHead 
+         procedure :: printFieldHead 
+
+   end type fieldhead
    ! Derived type for storing fields
-   type field2DReal
+   type,extends(fieldhead) :: field2DReal
 
       ! Raw array holding field data on this block
       real (kind=RKIND), dimension(:,:), pointer :: array
 
-      ! Information used by the I/O layer
-      CHARACTER*80    :: VarName
-      CHARACTER*1     :: Type
-      CHARACTER*1     :: ProcOrient  ! 'X' 'Y' or ' ' (X, Y, or non-transposed)
-      CHARACTER*80    :: DataName
-      CHARACTER*80    :: Description
-      CHARACTER*80    :: Units
-      CHARACTER*10    :: MemoryOrder
-      CHARACTER*10    :: Stagger
-      CHARACTER*80    :: dimname1
-      CHARACTER*80    :: dimname2
-      CHARACTER*80    :: dimname3
-      LOGICAL         :: scalar_array
-      LOGICAL         :: boundary_array
-      LOGICAL         :: restart
-
    end type field2DReal
 
    ! Derived type for storing fields
-   type field2DInteger
+   type,extends(fieldhead) :: field2DInteger
 
       ! Raw array holding field data on this block
       integer, dimension(:,:), pointer :: array
 
-      ! Information used by the I/O layer
-      CHARACTER*80    :: VarName
-      CHARACTER*1     :: Type
-      CHARACTER*1     :: ProcOrient  ! 'X' 'Y' or ' ' (X, Y, or non-transposed)
-      CHARACTER*80    :: DataName
-      CHARACTER*80    :: Description
-      CHARACTER*80    :: Units
-      CHARACTER*10    :: MemoryOrder
-      CHARACTER*10    :: Stagger
-      CHARACTER*80    :: dimname1
-      CHARACTER*80    :: dimname2
-      CHARACTER*80    :: dimname3
-      LOGICAL         :: scalar_array
-      LOGICAL         :: boundary_array
-      LOGICAL         :: restart
    end type field2DInteger
 
    contains
+
+   subroutine sendFieldHead(this,infield)
+!
+      class(fieldhead) :: this
+      type (fieldlist), intent(inout), pointer :: infield
+
+      infield%VarName      = this%VarName
+      infield%Type         = this%Type
+      infield%ProcOrient   = this%ProcOrient
+      infield%DataName     = this%DataName
+      infield%Description  = this%Description
+      infield%Units        = this%Units
+      infield%MemoryOrder  = this%MemoryOrder
+      infield%Stagger      = this%Stagger
+      infield%dimname1     = this%dimname1
+      infield%dimname2     = this%dimname2
+      infield%dimname3     = this%dimname3
+      infield%scalar_array = this%scalar_array
+      infield%Ndim         = this%Ndim
+
+      infield%sd1  =  this%sd1
+      infield%ed1  =  this%ed1
+      infield%sd2  =  this%sd2
+      infield%ed2  =  this%ed2
+      infield%sd3  =  this%sd3
+      infield%ed3  =  this%ed3
+   
+      infield%sm1  =  this%sm1
+      infield%em1  =  this%em1
+      infield%sm2  =  this%sm2
+      infield%em2  =  this%em2
+      infield%sm3  =  this%sm3
+      infield%em3  =  this%em3
+
+      infield%sp1  =  this%sp1
+      infield%ep1  =  this%ep1
+      infield%sp2  =  this%sp2
+      infield%ep2  =  this%ep2
+      infield%sp3  =  this%sp3
+      infield%ep3  =  this%ep3
+
+   end subroutine sendFieldHead
+
+   subroutine fillFieldHead(this,infield)
+!
+      class(fieldhead) :: this
+      type (fieldlist), intent(in), pointer :: infield
+
+      this%VarName      = infield%VarName
+      this%Type         = infield%Type
+      this%ProcOrient   = infield%ProcOrient
+      this%DataName     = infield%DataName
+      this%Description  = infield%Description
+      this%Units        = infield%Units
+      this%MemoryOrder  = infield%MemoryOrder
+      this%Stagger      = infield%Stagger
+      this%dimname1     = infield%dimname1
+      this%dimname2     = infield%dimname2
+      this%dimname3     = infield%dimname3
+      this%scalar_array = infield%scalar_array
+      this%Ndim         = infield%Ndim
+
+      this%sd1  =  infield%sd1
+      this%ed1  =  infield%ed1
+      this%sd2  =  infield%sd2
+      this%ed2  =  infield%ed2
+      this%sd3  =  infield%sd3
+      this%ed3  =  infield%ed3
+
+      this%sm1  =  infield%sm1
+      this%em1  =  infield%em1
+      this%sm2  =  infield%sm2
+      this%em2  =  infield%em2
+      this%sm3  =  infield%sm3
+      this%em3  =  infield%em3
+
+      this%sp1  =  infield%sp1
+      this%ep1  =  infield%ep1
+      this%sp2  =  infield%sp2
+      this%ep2  =  infield%ep2
+      this%sp3  =  infield%sp3
+      this%ep3  =  infield%ep3
+
+   end subroutine fillFieldHead
+
+   subroutine printFieldHead(this)
+!
+      class(fieldhead) :: this
+
+      write(*,*) 'list file head:'
+      write(*,*) 'VarName     = ',trim(this%VarName)
+      write(*,*) 'Type        = ',this%Type
+      write(*,*) 'ProcOrient  = ',this%ProcOrient
+      write(*,*) 'DataName    = ',trim(this%DataName)
+      write(*,*) 'Description = ',trim(this%Description)
+      write(*,*) 'Units       = ',trim(this%Units)
+      write(*,*) 'MemoryOrder = ',this%MemoryOrder
+      write(*,*) 'Stagger     = ',this%Stagger
+      write(*,*) 'scalar_array= ',this%scalar_array
+      write(*,*) 'Ndim        = ',this%Ndim
+      if(this%Ndim>0) then
+         do i=1,this%Ndim
+            if(i==1) write(*,*) 'dimname1    = ',trim(this%dimname1)
+            if(i==2) write(*,*) 'dimname2    = ',trim(this%dimname2)
+            if(i==3) write(*,*) 'dimname3    = ',trim(this%dimname3)
+         enddo
+      endif
+
+      write(*,*) 'sd1 = ', this%sd1, 'ed1 = ', this%ed1
+      write(*,*) 'sd2 = ', this%sd2, 'ed2 = ', this%ed2
+      write(*,*) 'sd3 = ', this%sd3, 'ed3 = ', this%ed3
+      write(*,*) 'sm1 = ', this%sm1, 'em1 = ', this%em1
+      write(*,*) 'sm2 = ', this%sm2, 'em2 = ', this%em2
+      write(*,*) 'sm3 = ', this%sm3, 'em3 = ', this%em3
+      write(*,*) 'sp1 = ', this%sp1, 'ep1 = ', this%ep1
+      write(*,*) 'sp2 = ', this%sp2, 'ep2 = ', this%ep2
+      write(*,*) 'sp3 = ', this%sp3, 'ep3 = ', this%ep3
+
+   end subroutine printFieldHead
 
 end module wrfjedi_derived_types

@@ -4,18 +4,19 @@
     "gridfname": "./restart.2018-04-15_00.00.00.nc"
   },
   "initial": {
-    "variables": ["temperature", "pressure", "index_qv", "uReconstructZonal", "uReconstructMeridional"],
+    "variables": ["t_1", "mu_1", "ph_1", "u_1", "v_1"],
     "filename": "./restart.2018-04-15_00.00.00.nc",
     "date": "2018-08-12T12:00:00Z"
   },
   "forecast_length": "PT30M",
   "model": {
+    "variables": ["T_1", "MU_1", "PH_1", "U_1", "V_1"],
     "name": "WRFJEDI",
     "tstep": "PT3M"
   },
   "output": {
-    "frequency": "PT1H",
-    "filename": "./mpas_forecast.$Y-$M-$D_$h.$m.$s.nc"
+    "frequency": "PT10M",
+    "filename": "./wrfjedi_analysis.$Y-$M-$D_$h.$m.$s.nc"
   },
   "prints": {
     "frequency": "PT30M"

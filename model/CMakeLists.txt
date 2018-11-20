@@ -30,9 +30,10 @@ wrfjedi_fields_mod.F90
 wrfjedi_fields_interface.F90
 wrfjedi_trajectories.F90
 wrfjedi_getvaltraj_mod.F90
-wrfjedi_pool_routines.F90
 wrfjedi_derived_types.F90
 pool_hash.c
+wrfjedi_pool_routines.F90
+wrfjedi4da_mod.F90
 )
 
 #set ( WRFJEDI_LIBRARIES $ENV{WRFJEDI_LIBRARIES} )

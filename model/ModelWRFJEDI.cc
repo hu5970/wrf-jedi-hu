@@ -27,12 +27,12 @@ namespace wrfjedi {
 ModelWRFJEDI::ModelWRFJEDI(const GeometryWRFJEDI & resol, 
                            const eckit::Configuration & model)
   : keyConfig_(0), tstep_(0), geom_(resol),
-    vars_(std::vector<std::string>{"temperature", "pressure", "index_qv",
-                              "uReconstructZonal", "uReconstructMeridional"})
+    vars_(model)
 {
   oops::Log::trace() << "ModelWRFJEDI::ModelWRFJEDI" << std::endl;
   tstep_ = util::Duration(model.getString("tstep"));
-  oops::Log::trace() << "ModelWRFJEDI::tstep_"<<tstep_<<std::endl;
+  oops::Log::trace() << "ModelWRFJEDI::tstep_ "<<tstep_<<std::endl;
+  oops::Log::trace() << "ModelWRFJEDI::vars_ "<<vars_<<std::endl;
   const eckit::Configuration * configc = &model;
   wrfjedi_model_setup_f90(&configc, geom_.toFortran(), keyConfig_);
   oops::Log::trace() << "ModelWRFJEDI created" << std::endl;

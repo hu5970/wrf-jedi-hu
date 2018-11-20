@@ -15,6 +15,16 @@ use ioda_locs_mod
 use ufo_geovals_mod
 use wrfjedi_getvaltraj_mod, only: wrfjedi_getvaltraj
 
+use wrfjedi_pool_routines, only : wrfjedi_pool_type, &
+                                  wrfjedi_pool_iterator_type, &
+                                  wrfjedi_pool_get_gridfield, &
+                                  wrfjedi_pool_add_field, &
+                                  wrfjedi_pool_get_field, &
+                                  wrfjedi_pool_get_array
+use wrfjedi_pool_routines, only : pool_print_members
+
+use wrfjedi4da_mod, only : da_make_subpool_wrfjedi
+
 !use wrfjedi_dmpar
 !use wrfjedi_derived_types
 !use wrfjedi_framework
@@ -32,7 +42,7 @@ use wrfjedi_getvaltraj_mod, only: wrfjedi_getvaltraj
 implicit none
 private
 
-public :: wrfjedi_field, &
+public :: wrfjedi_field, initial, &
         & create, delete, zeros, random, copy, &
         & self_add, self_schur, self_sub, self_mul, axpy, &
         & dot_prod, add_incr, diff_incr, &
@@ -45,16 +55,17 @@ public :: wrfjedi_field_registry
 ! ------------------------------------------------------------------------------
 
 !> Fortran derived type to hold WRF fields
-type :: wrfjedi_pool_type
-  integer :: nf ! how many varaibles to be analyzed
-! need to define this
-end type wrfjedi_pool_type
+!type :: wrfjedi_pool_type
+!  integer :: nf ! how many varaibles to be analyzed
+!! need to define this
+!end type wrfjedi_pool_type
 
 type :: wrfjedi_field
   type (wrfjedi_geom), pointer :: geom              ! grid and MPI infos
   integer :: nf                                  ! Number of variables in fld
   character(len=MAXVARLEN), allocatable  :: fldnames(:) ! Variable identifiers
-  type (wrfjedi_pool_type), pointer  :: subFields   !---> state variables (to be analyzed)
+!  type (wrfjedi_pool_type), pointer  :: allFields   !---> background variables (to be analyzed + auxiliary but not real data space)
+  type (wrfjedi_pool_type), pointer  :: subFields   !---> state variables (to be analyzed with real space saved)
   type (wrfjedi_pool_type), pointer  :: auxFields   !---> auxiliary variables, such as pressure, t2m, u10, v10, Tsfc
 !  type (MPAS_Clock_type), pointer :: clock
 end type wrfjedi_field
@@ -76,6 +87,45 @@ contains
 #include "linkedList_c.f"
 
 ! ------------------------------------------------------------------------------
+subroutine initial(self, geom, vars)
+
+!    use wrfjedi_kind_types
+
+    implicit none
+
+    type(wrfjedi_field), intent(inout)       :: self
+    type(wrfjedi_geom),  intent(in), pointer :: geom
+    type(ufo_vars),   intent(in)          :: vars
+
+    integer :: nsize, nfields
+    integer :: ierr!, ii
+
+    character(len=22), allocatable  :: fldnames_aux(:)
+
+!   real (kind=kind_real), dimension(:,:), pointer :: r2d_ptr_a
+!   type (field2DReal), pointer :: field2d, field2d_src
+
+    ! from the namelist
+    self % nf =  vars % nv
+    allocate(self % fldnames(self % nf))
+    self % fldnames(:) = vars % fldnames(:)
+    write(*,*)'self % nf =',self % nf
+    write(*,*)'link ::',self % fldnames(:)
+
+    ! link geom
+    if (associated(geom)) then
+      self % geom => geom
+    else
+      write(*,*)'wrfjedi_fields: geom not associated'
+      call abor1_ftn("wrfjedi_fields: geom not associated")
+    end if
+
+    write(0,*)'-- Create a sub Pool from list of variable ',self % nf
+    call da_make_subpool_wrfjedi(self % geom % wrfjedi_head_grid, self % subFields, self % nf, self % fldnames, nfields)
+    call pool_print_members(self % subFields)
+
+    call abor1_ftn("wrfjedi_fields: debug stop point")
+end subroutine initial
 
 subroutine create(self, geom, vars)
 

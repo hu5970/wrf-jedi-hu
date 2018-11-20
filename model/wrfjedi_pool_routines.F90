@@ -21,6 +21,31 @@ module wrfjedi_pool_routines
 !   use wrfjedi_abort, only : wrfjedi_dmpar_global_abort
    implicit none
    private
+
+   public :: wrfjedi_pool_type, &
+             wrfjedi_pool_iterator_type, &
+             wrfjedi_pool_get_gridfield, &
+             wrfjedi_pool_add_field, &
+             wrfjedi_pool_get_field, &
+             wrfjedi_pool_get_array
+  
+   public :: wrfjedi_pool_create_pool, &
+             wrfjedi_pool_clone_pool, &
+             wrfjedi_pool_empty_pool, &
+             wrfjedi_pool_destroy_pool, &
+             pool_print_members
+
+   public :: WRFJEDI_POOL_FIELD, &
+             WRFJEDI_POOL_REAL,  &
+             WRFJEDI_POOL_INTEGER, &
+             WRFJEDI_POOL_LOGICAL, &
+             WRFJEDI_POOL_CHARACTER
+
+   public ::  wrfjedi_pool_get_next_member, &
+              wrfjedi_pool_begin_iteration
+!
+!
+!
    integer, parameter :: WRFJEDI_POOL_TABLE_SIZE = 128
 !
    integer, parameter :: WRFJEDI_POOL_SILENT = 1001, &
@@ -33,10 +58,10 @@ module wrfjedi_pool_routines
                          WRFJEDI_POOL_SUBPOOL   = 1007, &
                          WRFJEDI_POOL_PACKAGE   = 1008
 !
-   CHARACTER*1,parameter :: WRFJEDI_POOL_REAL = 'R',    &
-                            WRFJEDI_POOL_INTEGER = 'I', &
-                            WRFJEDI_POOL_LOGICAL = 'L', &
-                            WRFJEDI_POOL_CHARACTER='C'
+   CHARACTER*1,parameter :: WRFJEDI_POOL_REAL = 'r',    &
+                            WRFJEDI_POOL_INTEGER = 'i', &
+                            WRFJEDI_POOL_LOGICAL = 'l', &
+                            WRFJEDI_POOL_CHARACTER='c'
 !   integer, parameter :: WRFJEDI_POOL_REAL      = 1009, &
 !                         WRFJEDI_POOL_INTEGER   = 1010, &
 !                         WRFJEDI_POOL_LOGICAL   = 1011, &
@@ -48,6 +73,7 @@ module wrfjedi_pool_routines
       integer :: keyLen
       integer :: contentsType
       type (fieldlist), pointer :: data => null()
+      type (fieldlist), pointer :: bkdata => null()
       type (wrfjedi_pool_member_type), pointer :: next => null()
       type (wrfjedi_pool_member_type), pointer :: iteration_next => null()
       type (wrfjedi_pool_member_type), pointer :: iteration_prev => null()
@@ -68,7 +94,7 @@ module wrfjedi_pool_routines
    type wrfjedi_pool_iterator_type
       character (len=StrKIND) :: memberName
       integer :: memberType
-      integer :: dataType
+      character*1 :: dataType
       integer :: nDims
       integer :: nTimeLevels
    end type wrfjedi_pool_iterator_type
@@ -80,6 +106,9 @@ module wrfjedi_pool_routines
       logical :: isActive
    end type wrfjedi_pool_field_info_type
 
+   interface wrfjedi_pool_get_gridfield
+      module procedure wrfjedi_pool_get_gridfield_2d_real
+   end interface wrfjedi_pool_get_gridfield
    
    interface wrfjedi_pool_add_field
 !      module procedure wrfjedi_pool_add_field_0d_real
@@ -163,6 +192,7 @@ module wrfjedi_pool_routines
    end interface
 !
    integer :: currentErrorLevel = WRFJEDI_POOL_SILENT
+   integer :: stderrUnit = 6
 !
    contains
 
@@ -177,20 +207,20 @@ module wrfjedi_pool_routines
 !>  This routine sets the internal error level for pools.
 !
 !-----------------------------------------------------------------------
-!   subroutine wrfjedi_pool_set_error_level(newErrorLevel) !{{{
-!
-!      implicit none
-!
-!      integer, intent(in) :: newErrorLevel
-!      integer :: threadNum
-!
-!      threadNum = wrfjedi_threading_get_thread_num()
-!
-!      if ( threadNum == 0 ) then
-!         currentErrorLevel = newErrorLevel
-!      end if
-!
-!   end subroutine wrfjedi_pool_set_error_level !}}}
+   subroutine wrfjedi_pool_set_error_level(newErrorLevel) !{{{
+
+      implicit none
+
+      integer, intent(in) :: newErrorLevel
+      integer :: threadNum
+
+      threadNum = wrfjedi_threading_get_thread_num()
+
+      if ( threadNum == 0 ) then
+         currentErrorLevel = newErrorLevel
+      end if
+
+   end subroutine wrfjedi_pool_set_error_level !}}}
 !
 !
 !-----------------------------------------------------------------------
@@ -212,805 +242,271 @@ module wrfjedi_pool_routines
 !   end function wrfjedi_pool_get_error_level !}}}
 !
 !
-!!-----------------------------------------------------------------------
-!!  routine wrfjedi_pool_create_pool
-!!
-!!> \brief WRFJEDI Pool creation routine
-!!> \author Ming Hu
-!!> \date   03/27/2014
-!!> \details
-!!>  This routine will create a new empty pool and associate newPool to this new
-!!>  pool location.
-!!
-!!-----------------------------------------------------------------------
-!   subroutine wrfjedi_pool_create_pool(newPool, poolSize)!{{{
+!-----------------------------------------------------------------------
+!  routine wrfjedi_pool_create_pool
 !
-!      implicit none
+!> \brief WRFJEDI Pool creation routine
+!> \author Ming Hu
+!> \date   03/27/2014
+!> \details
+!>  This routine will create a new empty pool and associate newPool to this new
+!>  pool location.
 !
-!      type (wrfjedi_pool_type), pointer :: newPool
-!      integer, intent(in), optional :: poolSize
-!      integer :: threadNum
+!-----------------------------------------------------------------------
+   subroutine wrfjedi_pool_create_pool(newPool, poolSize)!{{{
+
+      implicit none
+
+      type (wrfjedi_pool_type), pointer :: newPool
+      integer, intent(in), optional :: poolSize
+      integer :: threadNum
+
+      threadNum = wrfjedi_threading_get_thread_num()
+      
+      if ( threadNum == 0 ) then
+         allocate(newPool)
+
+         if (present(poolSize)) then
+            newPool % size = poolSize
+         else
+            newPool % size = WRFJEDI_POOL_TABLE_SIZE
+         end if
+         allocate(newPool % table(newPool % size))
+      end if
+
+   end subroutine wrfjedi_pool_create_pool!}}}
+
+
+!-----------------------------------------------------------------------
+!  routine wrfjedi_pool_destroy_pool
 !
-!      threadNum = wrfjedi_threading_get_thread_num()
-!      
-!      if ( threadNum == 0 ) then
-!         allocate(newPool)
+!> \brief WRFJEDI Pool deallocation routine
+!> \author Ming Hu
+!> \date   03/27/2014
+!> \details
+!>  This routine will destroy a pool associated with inPool.
 !
-!         if (present(poolSize)) then
-!            newPool % size = poolSize
-!         else
-!            newPool % size = WRFJEDI_POOL_TABLE_SIZE
-!         end if
-!         allocate(newPool % table(newPool % size))
-!      end if
-!
-!   end subroutine wrfjedi_pool_create_pool!}}}
-!
-!
-!!-----------------------------------------------------------------------
-!!  routine wrfjedi_pool_destroy_pool
-!!
-!!> \brief WRFJEDI Pool deallocation routine
-!!> \author Ming Hu
-!!> \date   03/27/2014
-!!> \details
-!!>  This routine will destroy a pool associated with inPool.
-!!
-!!-----------------------------------------------------------------------
-!   recursive subroutine wrfjedi_pool_destroy_pool(inPool)!{{{
-!
-!      implicit none
-!
-!      type (wrfjedi_pool_type), pointer :: inPool
-!
-!      integer :: i, j
-!      type (wrfjedi_pool_member_type), pointer :: ptr
-!      type (fieldlist), pointer :: dptr
-!      integer :: local_err, threadNum
-!
-!      threadNum = wrfjedi_threading_get_thread_num()
-!
-!      if ( threadNum == 0 ) then
-!         do i=1,inPool % size
-!   
-!            ptr => inPool % table(i) % head
-!            do while(associated(inPool % table(i) % head))
-!               ptr => inPool % table(i) % head
-!               inPool % table(i) % head => inPool % table(i) % head % next
-!   
-!               if (ptr % contentsType == WRFJEDI_POOL_DIMENSION) then
-!   
-!                  if (ptr % data % contentsDims > 0) then
-!                     deallocate(ptr % data % simple_int_arr, stat=local_err)
-!                  else
-!                     deallocate(ptr % data % simple_int, stat=local_err)
-!                  end if
-!   
-!               else if (ptr % contentsType == WRFJEDI_POOL_CONFIG) then
-!   
-!                  dptr => ptr % data
-!   
-!                  if (dptr % contentsType == WRFJEDI_POOL_REAL) then
-!                     deallocate(dptr % simple_real, stat=local_err)
-!                  else if (dptr % contentsType == WRFJEDI_POOL_INTEGER) then
-!                     deallocate(dptr % simple_int, stat=local_err)
-!                  else if (dptr % contentsType == WRFJEDI_POOL_CHARACTER) then
-!                     deallocate(dptr % simple_char, stat=local_err)
-!                  else if (dptr % contentsType == WRFJEDI_POOL_LOGICAL) then
-!                     deallocate(dptr % simple_logical, stat=local_err)
-!                  end if
-!   
-!               else if (ptr % contentsType == WRFJEDI_POOL_FIELD) then
-!   
-!                  dptr => ptr % data
-!   
-!                  ! Do this through brute force...
-!                  if (associated(dptr % r0)) then
-!                     deallocate(dptr % r0, stat=local_err)
-!                  else if (associated(dptr % r1)) then
-!                     if (associated(dptr % r1 % array)) then
-!                        deallocate(dptr % r1 % array, stat=local_err)
-!                     end if
-!   
-!                     deallocate(dptr % r1, stat=local_err)
-!                  else if (associated(dptr % r2)) then
-!                     if (associated(dptr % r2 % array)) then
-!                        deallocate(dptr % r2 % array, stat=local_err)
-!                     end if
-!   
-!                     deallocate(dptr % r2, stat=local_err)
-!                  else if (associated(dptr % r3)) then
-!                     if (associated(dptr % r3 % array)) then
-!                        deallocate(dptr % r3 % array, stat=local_err)
-!                     end if
-!   
-!                     deallocate(dptr % r3, stat=local_err)
-!                  else if (associated(dptr % r4)) then
-!                     if (associated(dptr % r4 % array)) then
-!                        deallocate(dptr % r4 % array, stat=local_err)
-!                     end if
-!   
-!                     deallocate(dptr % r4, stat=local_err)
-!                  else if (associated(dptr % r5)) then
-!                     if (associated(dptr % r5 % array)) then
-!                        deallocate(dptr % r5 % array, stat=local_err)
-!                     end if
-!   
-!                     deallocate(dptr % r5, stat=local_err)
-!                  else if (associated(dptr % i0)) then
-!                     deallocate(dptr % i0, stat=local_err)
-!                  else if (associated(dptr % i1)) then
-!                     if (associated(dptr % i1 % array)) then
-!                        deallocate(dptr % i1 % array, stat=local_err)
-!                     end if
-!   
-!                     deallocate(dptr % i1, stat=local_err)
-!                  else if (associated(dptr % i2)) then
-!                     if (associated(dptr % i2 % array)) then
-!                        deallocate(dptr % i2 % array, stat=local_err)
-!                     end if
-!   
-!                     deallocate(dptr % i2, stat=local_err)
-!                  else if (associated(dptr % i3)) then
-!                     if (associated(dptr % i3 % array)) then
-!                        deallocate(dptr % i3 % array, stat=local_err)
-!                     end if
-!   
-!                     deallocate(dptr % i3, stat=local_err)
-!                  else if (associated(dptr % c0)) then
-!                     deallocate(dptr % c0, stat=local_err)
-!                  else if (associated(dptr % c1)) then
-!                     if (associated(dptr % c1 % array)) then
-!                        deallocate(dptr % c1 % array, stat=local_err)
-!                     end if
-!   
-!                     deallocate(dptr % c1, stat=local_err)
-!                  else if (associated(dptr % l0)) then
-!                     deallocate(dptr % l0, stat=local_err)
-!                  else if (associated(dptr % r0a)) then
-!                     deallocate(dptr % r0a, stat=local_err)
-!                  else if (associated(dptr % r1a)) then
-!                     do j=1,dptr % contentsTimeLevs
-!                        if (associated(dptr % r1a(j) % array)) then
-!                           deallocate(dptr % r1a(j) % array, stat=local_err)
-!                        end if
-!                     end do
-!                     deallocate(dptr % r1a, stat=local_err)
-!                  else if (associated(dptr % r2a)) then
-!                     do j=1,dptr % contentsTimeLevs
-!                        if (associated(dptr % r2a(j) % array)) then
-!                           deallocate(dptr % r2a(j) % array, stat=local_err)
-!                        end if
-!                     end do
-!                     deallocate(dptr % r2a, stat=local_err)
-!                  else if (associated(dptr % r3a)) then
-!                     do j=1,dptr % contentsTimeLevs
-!                        if (associated(dptr % r3a(j) % array)) then
-!                           deallocate(dptr % r3a(j) % array, stat=local_err)
-!                        end if
-!                     end do
-!                     deallocate(dptr % r3a, stat=local_err)
-!                  else if (associated(dptr % r4a)) then
-!                     do j=1,dptr % contentsTimeLevs
-!                        if (associated(dptr % r4a(j) % array)) then
-!                           deallocate(dptr % r4a(j) % array, stat=local_err)
-!                        end if
-!                     end do
-!                     deallocate(dptr % r4a, stat=local_err)
-!                  else if (associated(dptr % r5a)) then
-!                     do j=1,dptr % contentsTimeLevs
-!                        if (associated(dptr % r5a(j) % array)) then
-!                           deallocate(dptr % r5a(j) % array, stat=local_err)
-!                        end if
-!                     end do
-!                     deallocate(dptr % r5a, stat=local_err)
-!                  else if (associated(dptr % i0a)) then
-!                     deallocate(dptr % i0a, stat=local_err)
-!                  else if (associated(dptr % i1a)) then
-!                     do j=1,dptr % contentsTimeLevs
-!                        if (associated(dptr % i1a(j) % array)) then
-!                           deallocate(dptr % i1a(j) % array, stat=local_err)
-!                        end if
-!                     end do
-!                     deallocate(dptr % i1a, stat=local_err)
-!                  else if (associated(dptr % i2a)) then
-!                     do j=1,dptr % contentsTimeLevs
-!                        if (associated(dptr % i2a(j) % array)) then
-!                           deallocate(dptr % i2a(j) % array, stat=local_err)
-!                        end if
-!                     end do
-!                     deallocate(dptr % i2a, stat=local_err)
-!                  else if (associated(dptr % i3a)) then
-!                     do j=1,dptr % contentsTimeLevs
-!                        if (associated(dptr % i3a(j) % array)) then
-!                           deallocate(dptr % i3a(j) % array, stat=local_err)
-!                        end if
-!                     end do
-!                     deallocate(dptr % i3a, stat=local_err)
-!                  else if (associated(dptr % c0a)) then
-!                     deallocate(dptr % c0a, stat=local_err)
-!                  else if (associated(dptr % c1a)) then
-!                     do j=1,dptr % contentsTimeLevs
-!                        if (associated(dptr % c1a(j) % array)) then
-!                           deallocate(dptr % c1a(j) % array, stat=local_err)
-!                        end if
-!                     end do
-!                     deallocate(dptr % c1a, stat=local_err)
-!                  else if (associated(dptr % l0a)) then
-!                     deallocate(dptr % l0a, stat=local_err)
-!                  else
-!                     call pool_mesg('While destroying pool, member '//trim(ptr % key)//' has no valid field pointers.')
-!                  end if
-!   
-!               else if (ptr % contentsType == WRFJEDI_POOL_SUBPOOL) then
-!   
+!-----------------------------------------------------------------------
+   recursive subroutine wrfjedi_pool_destroy_pool(inPool)!{{{
+
+      implicit none
+
+      type (wrfjedi_pool_type), pointer :: inPool
+
+      integer :: i, j
+      type (wrfjedi_pool_member_type), pointer :: ptr
+      type (fieldlist), pointer :: dptr
+      integer :: local_err, threadNum
+
+      threadNum = wrfjedi_threading_get_thread_num()
+
+      if ( threadNum == 0 ) then
+         do i=1,inPool % size
+   
+            ptr => inPool % table(i) % head
+            do while(associated(inPool % table(i) % head))
+               ptr => inPool % table(i) % head
+               inPool % table(i) % head => inPool % table(i) % head % next
+   
+               if (ptr % contentsType == WRFJEDI_POOL_DIMENSION) then
+   
+               else if (ptr % contentsType == WRFJEDI_POOL_CONFIG) then
+   
+               else if (ptr % contentsType == WRFJEDI_POOL_FIELD) then
+   
+                  dptr => ptr % data
+   
+                  ! Do this through brute force...
+                  if (associated(dptr % rfield_0d)) then
+                     deallocate(dptr % rfield_0d, stat=local_err)
+                  else if (associated(dptr % rfield_1d)) then
+                     deallocate(dptr % rfield_1d, stat=local_err)
+                  else if (associated(dptr % rfield_2d)) then
+                      deallocate(dptr % rfield_2d, stat=local_err)
+                  else if (associated(dptr % rfield_3d)) then
+                     deallocate(dptr % rfield_3d, stat=local_err)
+                  else if (associated(dptr % rfield_4d)) then
+                     deallocate(dptr % rfield_4d, stat=local_err)
+                  else if (associated(dptr % rfield_5d)) then
+                     deallocate(dptr % rfield_5d, stat=local_err)
+                  else if (associated(dptr % rfield_6d)) then
+                     deallocate(dptr % rfield_6d, stat=local_err)
+                  else if (associated(dptr % dfield_0d)) then
+                     deallocate(dptr % dfield_0d, stat=local_err)
+                  else if (associated(dptr % dfield_1d)) then
+                     deallocate(dptr % dfield_1d, stat=local_err)
+                  else if (associated(dptr % dfield_2d)) then
+                     deallocate(dptr % dfield_2d, stat=local_err)
+                  else if (associated(dptr % dfield_3d)) then
+                     deallocate(dptr % dfield_3d, stat=local_err)
+                  else if (associated(dptr % dfield_4d)) then
+                     deallocate(dptr % dfield_4d, stat=local_err)
+                  else if (associated(dptr % ifield_0d)) then
+                     deallocate(dptr % ifield_0d, stat=local_err)
+                  else if (associated(dptr % ifield_1d)) then
+                     deallocate(dptr % ifield_1d, stat=local_err)
+                  else if (associated(dptr % ifield_2d)) then
+                     deallocate(dptr % ifield_2d, stat=local_err)
+                  else if (associated(dptr % ifield_3d)) then
+                     deallocate(dptr % ifield_3d, stat=local_err)
+                  else if (associated(dptr % ifield_4d)) then
+                     deallocate(dptr % ifield_4d, stat=local_err)
+                  else if (associated(dptr % ifield_5d)) then
+                     deallocate(dptr % ifield_5d, stat=local_err)
+                  else if (associated(dptr % ifield_6d)) then
+                     deallocate(dptr % ifield_6d, stat=local_err)
+                  else if (associated(dptr % lfield_0d)) then
+                     deallocate(dptr % lfield_0d, stat=local_err)
+                  else if (associated(dptr % lfield_1d)) then
+                     deallocate(dptr % lfield_1d, stat=local_err)
+                  else if (associated(dptr % lfield_2d)) then
+                     deallocate(dptr % lfield_2d, stat=local_err)
+                  else
+                     call pool_mesg('While destroying pool, member '//trim(ptr % key)//' has no valid field pointers.')
+                  end if
+   
+               else if (ptr % contentsType == WRFJEDI_POOL_SUBPOOL) then
+   
 !                  call wrfjedi_pool_destroy_pool(ptr % data % p)
-!   
-!               end if
-!               deallocate(ptr % data, stat=local_err)
-!               deallocate(ptr, stat=local_err)
-!            end do
-!   
-!         end do
-!   
-!         deallocate(inPool % table, stat=local_err)
-!         deallocate(inPool, stat=local_err)
-!      end if
+   
+               end if
+               deallocate(ptr % data, stat=local_err)
+               deallocate(ptr, stat=local_err)
+            end do
+   
+         end do
+   
+         deallocate(inPool % table, stat=local_err)
+         deallocate(inPool, stat=local_err)
+      end if
+
+   end subroutine wrfjedi_pool_destroy_pool!}}}
+
+
+!-----------------------------------------------------------------------
+!  routine wrfjedi_pool_empty_pool
 !
-!   end subroutine wrfjedi_pool_destroy_pool!}}}
+!> \brief WRFJEDI Pool empty routine
+!> \author Ming Hu
+!> \date   03/27/2014
+!> \details
+!>  This routine will remove all memebers from within a pool associated with inPool.
 !
+!-----------------------------------------------------------------------
+   recursive subroutine wrfjedi_pool_empty_pool(inPool)!{{{
+
+      implicit none
+
+      type (wrfjedi_pool_type), intent(inout) :: inPool
+
+      integer :: i
+      type (wrfjedi_pool_member_type), pointer :: ptr
+      integer :: local_err, threadNum
+
+      threadNum = wrfjedi_threading_get_thread_num()
+
+      if ( threadNum == 0 ) then
+         do i=1,inPool % size
+
+            ptr => inPool % table(i) % head
+            do while(associated(inPool % table(i) % head))
+               ptr => inPool % table(i) % head
+               inPool % table(i) % head => inPool % table(i) % head % next
+               if (ptr % contentsType == WRFJEDI_POOL_DIMENSION) then
+               else if (ptr % contentsType == WRFJEDI_POOL_CONFIG) then
+               else if (ptr % contentsType == WRFJEDI_POOL_PACKAGE) then
+               else if (ptr % contentsType == WRFJEDI_POOL_SUBPOOL) then
+               end if
+               deallocate(ptr, stat=local_err)
+            end do
+
+         end do
+
+         nullify(inPool % iterator)
+      end if
+
+   end subroutine wrfjedi_pool_empty_pool!}}}
+
+
+!-----------------------------------------------------------------------
+!  routine wrfjedi_pool_clone_pool
 !
-!!-----------------------------------------------------------------------
-!!  routine wrfjedi_pool_empty_pool
-!!
-!!> \brief WRFJEDI Pool empty routine
-!!> \author Ming Hu
-!!> \date   03/27/2014
-!!> \details
-!!>  This routine will remove all memebers from within a pool associated with inPool.
-!!
-!!-----------------------------------------------------------------------
-!   recursive subroutine wrfjedi_pool_empty_pool(inPool)!{{{
+!> \brief WRFJEDI Pool clone routine
+!> \author Ming Hu
+!> \date   03/27/2014
+!> \details
+!> This routine assumes destPool is an empty pool. It will clone all of the members
+!> from srcPool into destPool.
 !
-!      implicit none
-!
-!      type (wrfjedi_pool_type), intent(inout) :: inPool
-!
-!      integer :: i
-!      type (wrfjedi_pool_member_type), pointer :: ptr
-!      integer :: local_err, threadNum
-!
-!      threadNum = wrfjedi_threading_get_thread_num()
-!
-!      if ( threadNum == 0 ) then
-!         do i=1,inPool % size
-!
-!            ptr => inPool % table(i) % head
-!            do while(associated(inPool % table(i) % head))
-!               ptr => inPool % table(i) % head
-!               inPool % table(i) % head => inPool % table(i) % head % next
-!               if (ptr % contentsType == WRFJEDI_POOL_DIMENSION) then
-!                  if (ptr % data % contentsDims > 0) then
-!                     deallocate(ptr % data % simple_int_arr, stat=local_err)
-!                  else
-!                     deallocate(ptr % data % simple_int, stat=local_err)
-!                  end if
-!               else if (ptr % contentsType == WRFJEDI_POOL_CONFIG) then
-!                  if (ptr % data % contentsType == WRFJEDI_POOL_REAL) then
-!                     deallocate(ptr % data % simple_real, stat=local_err)
-!                  else if (ptr % data % contentsType == WRFJEDI_POOL_INTEGER) then
-!                     deallocate(ptr % data % simple_int, stat=local_err)
-!                  else if (ptr % data % contentsType == WRFJEDI_POOL_CHARACTER) then
-!                     deallocate(ptr % data % simple_char, stat=local_err)
-!                  else if (ptr % data % contentsType == WRFJEDI_POOL_LOGICAL) then
-!                     deallocate(ptr % data % simple_logical, stat=local_err)
-!                  end if
-!               else if (ptr % contentsType == WRFJEDI_POOL_PACKAGE) then
-!                  deallocate(ptr % data % simple_logical, stat=local_err)
-!               else if (ptr % contentsType == WRFJEDI_POOL_SUBPOOL) then
-!                  call wrfjedi_pool_empty_pool(ptr % data % p)
-!                  deallocate(ptr % data % p, stat=local_err)
-!               end if
-!               deallocate(ptr, stat=local_err)
-!            end do
-!
-!         end do
-!
-!         nullify(inPool % iterator)
-!      end if
-!
-!   end subroutine wrfjedi_pool_empty_pool!}}}
-!
-!
-!!-----------------------------------------------------------------------
-!!  routine wrfjedi_pool_clone_pool
-!!
-!!> \brief WRFJEDI Pool clone routine
-!!> \author Ming Hu
-!!> \date   03/27/2014
-!!> \details
-!!> This routine assumes destPool is an empty pool. It will clone all of the members
-!!> from srcPool into destPool.
-!!
-!!-----------------------------------------------------------------------
-!   recursive subroutine wrfjedi_pool_clone_pool(srcPool, destPool, overrideTimeLevels)!{{{
-!
-!      implicit none
-!
-!      type (wrfjedi_pool_type), pointer :: srcPool
-!      type (wrfjedi_pool_type), pointer :: destPool
-!      integer, intent(in), optional :: overrideTimeLevels
-!
-!
-!      integer :: i, j, newTimeLevels, minTimeLevels, threadNum
-!      type (wrfjedi_pool_member_type), pointer :: ptr
-!      type (fieldlist), pointer :: dptr
-!      type (wrfjedi_pool_member_type), pointer :: newmem
-!
-!      threadNum = wrfjedi_threading_get_thread_num()
-!      newTimeLevels = -1
-!
-!      if (present(overrideTimeLevels)) then
-!         newTimeLevels = overrideTimeLevels
-!
-!         if (newTimeLevels < 1) then
-!            call wrfjedi_pool_set_error_level(WRFJEDI_POOL_FATAL)
-!            call pool_mesg('ERROR in wrfjedi_pool_clone_pool: Input time levels cannot be less than 1.')
-!         end if
-!      end if
-!
-!      !TODO: Make use of overrideTimeLevels. This routine needs to create a new set of time levels.
-!
-!!TODO: should we force destPool to have the same table size as srcPool?
-!
-!      !TODO: Allow threading on copy calls below.
-!      if ( threadNum == 0 ) then
-!         ptr => srcPool % iteration_head
-!         do while(associated(ptr))
-!
-!            allocate(newmem)
-!            newmem % key = ptr % key
-!            newmem % keyLen = ptr % keyLen
-!            newmem % contentsType = ptr % contentsType
-!            allocate(newmem % data)
-!            newmem % data % contentsType = ptr % data % contentsType
-!            newmem % data % contentsDims = ptr % data % contentsDims
-!            if (newTimeLevels /= -1) then
-!               newmem % data % contentsTimeLevs = newTimeLevels
-!            else
-!               newmem % data % contentsTimeLevs = ptr % data % contentsTimeLevs
-!            end if
-!
-!            if (ptr % contentsType == WRFJEDI_POOL_DIMENSION) then
-!
-!               if (ptr % data % contentsDims > 0) then
-!                  allocate(newmem % data % simple_int_arr(size(ptr % data % simple_int_arr)))
-!                  newmem % data % simple_int_arr(:) = ptr % data % simple_int_arr(:)
-!               else
-!                  allocate(newmem % data % simple_int)
-!                  newmem % data % simple_int = ptr % data % simple_int
-!               end if
-!
-!            else if (ptr % contentsType == WRFJEDI_POOL_CONFIG) then
-!
-!               dptr => ptr % data
-!
-!               if (dptr % contentsType == WRFJEDI_POOL_REAL) then
-!                  allocate(newmem % data % simple_real)
-!                  newmem % data % simple_real = dptr % simple_real
-!               else if (dptr % contentsType == WRFJEDI_POOL_INTEGER) then
-!                  allocate(newmem % data % simple_int)
-!                  newmem % data % simple_int = dptr % simple_int
-!               else if (dptr % contentsType == WRFJEDI_POOL_CHARACTER) then
-!                  allocate(newmem % data % simple_char)
-!                  newmem % data % simple_char = dptr % simple_char
-!               else if (dptr % contentsType == WRFJEDI_POOL_LOGICAL) then
-!                  allocate(newmem % data % simple_logical)
-!                  newmem % data % simple_logical = dptr % simple_logical
-!               end if
-!
-!            else if (ptr % contentsType == WRFJEDI_POOL_FIELD) then
-!
-!               dptr => ptr % data
-!
-!               ! Do this through brute force...
-!               if (associated(dptr % r0)) then
-!                  if (newmem % data % contentsTimeLevs > 1) then
-!                     allocate(newmem % data % r0a(newmem % data % contentsTimeLevs))
-!                     do j = 1, newmem % data % contentsTimeLevs
-!                        call wrfjedi_duplicate_field(dptr % r0, newmem % data % r0)
-!                        newmem % data % r0a(j) = newmem % data % r0
-!                        deallocate(newmem % data % r0)
-!                     end do
-!                  else
-!                     call wrfjedi_duplicate_field(dptr % r0, newmem % data % r0)
-!                  end if
-!               else if (associated(dptr % r1)) then
-!                  if (newmem % data % contentsTimeLevs > 1) then
-!                     allocate(newmem % data % r1a(newmem % data % contentsTimeLevs))
-!                     do j = 1, newmem % data % contentsTimeLevs
-!                        call wrfjedi_duplicate_field(dptr % r1, newmem % data % r1)
-!                        newmem % data % r1a(j) = newmem % data % r1
-!                        deallocate(newmem % data % r1)
-!                     end do
-!                  else
-!                     call wrfjedi_duplicate_field(dptr % r1, newmem % data % r1)
-!                  end if
-!               else if (associated(dptr % r2)) then
-!                  if (newmem % data % contentsTimeLevs > 1) then
-!                     allocate(newmem % data % r2a(newmem % data % contentsTimeLevs))
-!                     do j = 1, newmem % data % contentsTimeLevs
-!                        call wrfjedi_duplicate_field(dptr % r2, newmem % data % r2)
-!                        newmem % data % r2a(j) = newmem % data % r2
-!                        deallocate(newmem % data % r2)
-!                     end do
-!                  else
-!                     call wrfjedi_duplicate_field(dptr % r2, newmem % data % r2)
-!                  end if
-!               else if (associated(dptr % r3)) then
-!                  if (newmem % data % contentsTimeLevs > 1) then
-!                     allocate(newmem % data % r3a(newmem % data % contentsTimeLevs))
-!                     do j = 1, newmem % data % contentsTimeLevs
-!                        call wrfjedi_duplicate_field(dptr % r3, newmem % data % r3)
-!                        newmem % data % r3a(j) = newmem % data % r3
-!                        deallocate(newmem % data % r3)
-!                     end do
-!                  else
-!                     call wrfjedi_duplicate_field(dptr % r3, newmem % data % r3)
-!                  end if
-!               else if (associated(dptr % r4)) then
-!                  if (newmem % data % contentsTimeLevs > 1) then
-!                     allocate(newmem % data % r4a(newmem % data % contentsTimeLevs))
-!                     do j = 1, newmem % data % contentsTimeLevs
-!                        call wrfjedi_duplicate_field(dptr % r4, newmem % data % r4)
-!                        newmem % data % r4a(j) = newmem % data % r4
-!                        deallocate(newmem % data % r4)
-!                     end do
-!                  else
-!                     call wrfjedi_duplicate_field(dptr % r4, newmem % data % r4)
-!                  end if
-!               else if (associated(dptr % r5)) then
-!                  if (newmem % data % contentsTimeLevs > 1) then
-!                     allocate(newmem % data % r5a(newmem % data % contentsTimeLevs))
-!                     do j = 1, newmem % data % contentsTimeLevs
-!                        call wrfjedi_duplicate_field(dptr % r5, newmem % data % r5)
-!                        newmem % data % r5a(j) = newmem % data % r5
-!                        deallocate(newmem % data % r5)
-!                     end do
-!                  else
-!                     call wrfjedi_duplicate_field(dptr % r5, newmem % data % r5)
-!                  end if
-!               else if (associated(dptr % i0)) then
-!                  if (newmem % data % contentsTimeLevs > 1) then
-!                     allocate(newmem % data % i0a(newmem % data % contentsTimeLevs))
-!                     do j = 1, newmem % data % contentsTimeLevs
-!                        call wrfjedi_duplicate_field(dptr % i0, newmem % data % i0)
-!                        newmem % data % i0a(j) = newmem % data % i0
-!                        deallocate(newmem % data % i0)
-!                     end do
-!                  else
-!                     call wrfjedi_duplicate_field(dptr % i0, newmem % data % i0)
-!                  end if
-!               else if (associated(dptr % i1)) then
-!                  if (newmem % data % contentsTimeLevs > 1) then
-!                     allocate(newmem % data % i1a(newmem % data % contentsTimeLevs))
-!                     do j = 1, newmem % data % contentsTimeLevs
-!                        call wrfjedi_duplicate_field(dptr % i1, newmem % data % i1)
-!                        newmem % data % i1a(j) = newmem % data % i1
-!                        deallocate(newmem % data % i1)
-!                     end do
-!                  else
-!                     call wrfjedi_duplicate_field(dptr % i1, newmem % data % i1)
-!                  end if
-!               else if (associated(dptr % i2)) then
-!                  if (newmem % data % contentsTimeLevs > 1) then
-!                     allocate(newmem % data % i2a(newmem % data % contentsTimeLevs))
-!                     do j = 1, newmem % data % contentsTimeLevs
-!                        call wrfjedi_duplicate_field(dptr % i2, newmem % data % i2)
-!                        newmem % data % i2a(j) = newmem % data % i2
-!                        deallocate(newmem % data % i2)
-!                     end do
-!                  else
-!                     call wrfjedi_duplicate_field(dptr % i2, newmem % data % i2)
-!                  end if
-!               else if (associated(dptr % i3)) then
-!                  if (newmem % data % contentsTimeLevs > 1) then
-!                     allocate(newmem % data % i3a(newmem % data % contentsTimeLevs))
-!                     do j = 1, newmem % data % contentsTimeLevs
-!                        call wrfjedi_duplicate_field(dptr % i3, newmem % data % i3)
-!                        newmem % data % i3a(j) = newmem % data % i3
-!                        deallocate(newmem % data % i3)
-!                     end do
-!                  else
-!                     call wrfjedi_duplicate_field(dptr % i3, newmem % data % i3)
-!                  end if
-!               else if (associated(dptr % c0)) then
-!                  if (newmem % data % contentsTimeLevs > 1) then
-!                     allocate(newmem % data % c0a(newmem % data % contentsTimeLevs))
-!                     do j = 1, newmem % data % contentsTimeLevs
-!                        call wrfjedi_duplicate_field(dptr % c0, newmem % data % c0)
-!                        newmem % data % c0a(j) = newmem % data % c0
-!                        deallocate(newmem % data % c0)
-!                     end do
-!                  else
-!                     call wrfjedi_duplicate_field(dptr % c0, newmem % data % c0)
-!                  end if
-!               else if (associated(dptr % c1)) then
-!                  if (newmem % data % contentsTimeLevs > 1) then
-!                     allocate(newmem % data % c1a(newmem % data % contentsTimeLevs))
-!                     do j = 1, newmem % data % contentsTimeLevs
-!                        call wrfjedi_duplicate_field(dptr % c1, newmem % data % c1)
-!                        newmem % data % c1a(j) = newmem % data % c1
-!                        deallocate(newmem % data % c1)
-!                     end do
-!                  else
-!                     call wrfjedi_duplicate_field(dptr % c1, newmem % data % c1)
-!                  end if
-!               else if (associated(dptr % l0)) then
-!                  if (newmem % data % contentsTimeLevs > 1) then
-!                     allocate(newmem % data % l0a(newmem % data % contentsTimeLevs))
-!                     do j = 1, newmem % data % contentsTimeLevs
-!                        call wrfjedi_duplicate_field(dptr % l0, newmem % data % l0)
-!                        newmem % data % l0a(j) = newmem % data % l0
-!                        deallocate(newmem % data % l0)
-!                     end do
-!                  else
-!                     call wrfjedi_duplicate_field(dptr % l0, newmem % data % l0)
-!                  end if
-!               else if (associated(dptr % r0a)) then
-!                  if ( newmem % data % contentsTimeLevs > 1) then
-!                     allocate(newmem % data % r0a(newmem % data % contentsTimeLevs))
-!                     minTimeLevels = min(dptr % contentsTimeLevs, newmem % data % contentsTimeLevs)
-!                     do j = 1, minTimeLevels
-!                        call wrfjedi_duplicate_field(dptr % r0a(j), newmem % data % r0)
-!                        newmem % data % r0a(j) = newmem % data % r0
-!                        deallocate(newmem % data % r0)
-!                     end do
-!
-!                     do j = minTimeLevels, newmem % data % contentsTimeLevs
-!                        call wrfjedi_duplicate_field(dptr % r0a(dptr % contentsTimeLevs), newmem % data % r0)
-!                        newmem % data % r0a(j) = newmem % data % r0
-!                        deallocate(newmem % data % r0)
-!                     end do
-!                  else
-!                     call wrfjedi_duplicate_field(dptr % r0a(1), newmem % data % r0)
-!                  end if
-!               else if (associated(dptr % r1a)) then
-!                  if ( newmem % data % contentsTimeLevs > 1) then
-!                     allocate(newmem % data % r1a(newmem % data % contentsTimeLevs))
-!                     minTimeLevels = min(dptr % contentsTimeLevs, newmem % data % contentsTimeLevs)
-!                     do j = 1, minTimeLevels
-!                        call wrfjedi_duplicate_field(dptr % r1a(j), newmem % data % r1)
-!                        newmem % data % r1a(j) = newmem % data % r1
-!                        deallocate(newmem % data % r1)
-!                     end do
-!
-!                     do j = minTimeLevels, newmem % data % contentsTimeLevs
-!                        call wrfjedi_duplicate_field(dptr % r1a(dptr % contentsTimeLevs), newmem % data % r1)
-!                        newmem % data % r1a(j) = newmem % data % r1
-!                        deallocate(newmem % data % r1)
-!                     end do
-!                  else
-!                     call wrfjedi_duplicate_field(dptr % r1a(1), newmem % data % r1)
-!                  end if
-!               else if (associated(dptr % r2a)) then
-!                  if ( newmem % data % contentsTimeLevs > 1) then
-!                     allocate(newmem % data % r2a(newmem % data % contentsTimeLevs))
-!                     minTimeLevels = min(dptr % contentsTimeLevs, newmem % data % contentsTimeLevs)
-!                     do j = 1, minTimeLevels
-!                        call wrfjedi_duplicate_field(dptr % r2a(j), newmem % data % r2)
-!                        newmem % data % r2a(j) = newmem % data % r2
-!                        deallocate(newmem % data % r2)
-!                     end do
-!
-!                     do j = minTimeLevels, newmem % data % contentsTimeLevs
-!                        call wrfjedi_duplicate_field(dptr % r2a(dptr % contentsTimeLevs), newmem % data % r2)
-!                        newmem % data % r2a(j) = newmem % data % r2
-!                        deallocate(newmem % data % r2)
-!                     end do
-!                  else
-!                     call wrfjedi_duplicate_field(dptr % r2a(1), newmem % data % r2)
-!                  end if
-!               else if (associated(dptr % r3a)) then
-!                  if ( newmem % data % contentsTimeLevs > 1) then
-!                     allocate(newmem % data % r3a(newmem % data % contentsTimeLevs))
-!                     minTimeLevels = min(dptr % contentsTimeLevs, newmem % data % contentsTimeLevs)
-!                     do j = 1, minTimeLevels
-!                        call wrfjedi_duplicate_field(dptr % r3a(j), newmem % data % r3)
-!                        newmem % data % r3a(j) = newmem % data % r3
-!                        deallocate(newmem % data % r3)
-!                     end do
-!
-!                     do j = minTimeLevels, newmem % data % contentsTimeLevs
-!                        call wrfjedi_duplicate_field(dptr % r3a(dptr % contentsTimeLevs), newmem % data % r3)
-!                        newmem % data % r3a(j) = newmem % data % r3
-!                        deallocate(newmem % data % r3)
-!                     end do
-!                  else
-!                     call wrfjedi_duplicate_field(dptr % r3a(1), newmem % data % r3)
-!                  end if
-!               else if (associated(dptr % r4a)) then
-!                  if ( newmem % data % contentsTimeLevs > 1) then
-!                     allocate(newmem % data % r4a(newmem % data % contentsTimeLevs))
-!                     minTimeLevels = min(dptr % contentsTimeLevs, newmem % data % contentsTimeLevs)
-!                     do j = 1, minTimeLevels
-!                        call wrfjedi_duplicate_field(dptr % r4a(j), newmem % data % r4)
-!                        newmem % data % r4a(j) = newmem % data % r4
-!                        deallocate(newmem % data % r4)
-!                     end do
-!
-!                     do j = minTimeLevels, newmem % data % contentsTimeLevs
-!                        call wrfjedi_duplicate_field(dptr % r4a(dptr % contentsTimeLevs), newmem % data % r4)
-!                        newmem % data % r4a(j) = newmem % data % r4
-!                        deallocate(newmem % data % r4)
-!                     end do
-!                  else
-!                     call wrfjedi_duplicate_field(dptr % r4a(1), newmem % data % r4)
-!                  end if
-!               else if (associated(dptr % r5a)) then
-!                  if ( newmem % data % contentsTimeLevs > 1) then
-!                     allocate(newmem % data % r5a(newmem % data % contentsTimeLevs))
-!                     minTimeLevels = min(dptr % contentsTimeLevs, newmem % data % contentsTimeLevs)
-!                     do j = 1, minTimeLevels
-!                        call wrfjedi_duplicate_field(dptr % r5a(j), newmem % data % r5)
-!                        newmem % data % r5a(j) = newmem % data % r5
-!                        deallocate(newmem % data % r5)
-!                     end do
-!
-!                     do j = minTimeLevels, newmem % data % contentsTimeLevs
-!                        call wrfjedi_duplicate_field(dptr % r5a(dptr % contentsTimeLevs), newmem % data % r5)
-!                        newmem % data % r5a(j) = newmem % data % r5
-!                        deallocate(newmem % data % r5)
-!                     end do
-!                  else
-!                     call wrfjedi_duplicate_field(dptr % r5a(1), newmem % data % r5)
-!                  end if
-!               else if (associated(dptr % i0a)) then
-!                  if ( newmem % data % contentsTimeLevs > 1) then
-!                     allocate(newmem % data % i0a(newmem % data % contentsTimeLevs))
-!                     minTimeLevels = min(dptr % contentsTimeLevs, newmem % data % contentsTimeLevs)
-!                     do j = 1, minTimeLevels
-!                        call wrfjedi_duplicate_field(dptr % i0a(j), newmem % data % i0)
-!                        newmem % data % i0a(j) = newmem % data % i0
-!                        deallocate(newmem % data % i0)
-!                     end do
-!
-!                     do j = minTimeLevels, newmem % data % contentsTimeLevs
-!                        call wrfjedi_duplicate_field(dptr % i0a(dptr % contentsTimeLevs), newmem % data % i0)
-!                        newmem % data % i0a(j) = newmem % data % i0
-!                        deallocate(newmem % data % i0)
-!                     end do
-!                  else
-!                     call wrfjedi_duplicate_field(dptr % i0a(1), newmem % data % i0)
-!                  end if
-!               else if (associated(dptr % i1a)) then
-!                  if ( newmem % data % contentsTimeLevs > 1) then
-!                     allocate(newmem % data % i1a(newmem % data % contentsTimeLevs))
-!                     minTimeLevels = min(dptr % contentsTimeLevs, newmem % data % contentsTimeLevs)
-!                     do j = 1, minTimeLevels
-!                        call wrfjedi_duplicate_field(dptr % i1a(j), newmem % data % i1)
-!                        newmem % data % i1a(j) = newmem % data % i1
-!                        deallocate(newmem % data % i1)
-!                     end do
-!
-!                     do j = minTimeLevels, newmem % data % contentsTimeLevs
-!                        call wrfjedi_duplicate_field(dptr % i1a(dptr % contentsTimeLevs), newmem % data % i1)
-!                        newmem % data % i1a(j) = newmem % data % i1
-!                        deallocate(newmem % data % i1)
-!                     end do
-!                  else
-!                     call wrfjedi_duplicate_field(dptr % i1a(1), newmem % data % i1)
-!                  end if
-!               else if (associated(dptr % i2a)) then
-!                  if ( newmem % data % contentsTimeLevs > 1) then
-!                     allocate(newmem % data % i2a(newmem % data % contentsTimeLevs))
-!                     minTimeLevels = min(dptr % contentsTimeLevs, newmem % data % contentsTimeLevs)
-!                     do j = 1, minTimeLevels
-!                        call wrfjedi_duplicate_field(dptr % i2a(j), newmem % data % i2)
-!                        newmem % data % i2a(j) = newmem % data % i2
-!                        deallocate(newmem % data % i2)
-!                     end do
-!
-!                     do j = minTimeLevels, newmem % data % contentsTimeLevs
-!                        call wrfjedi_duplicate_field(dptr % i2a(dptr % contentsTimeLevs), newmem % data % i2)
-!                        newmem % data % i2a(j) = newmem % data % i2
-!                        deallocate(newmem % data % i2)
-!                     end do
-!                  else
-!                     call wrfjedi_duplicate_field(dptr % i2a(1), newmem % data % i2)
-!                  end if
-!               else if (associated(dptr % i3a)) then
-!                  if ( newmem % data % contentsTimeLevs > 1) then
-!                     allocate(newmem % data % i3a(newmem % data % contentsTimeLevs))
-!                     minTimeLevels = min(dptr % contentsTimeLevs, newmem % data % contentsTimeLevs)
-!                     do j = 1, minTimeLevels
-!                        call wrfjedi_duplicate_field(dptr % i3a(j), newmem % data % i3)
-!                        newmem % data % i3a(j) = newmem % data % i3
-!                        deallocate(newmem % data % i3)
-!                     end do
-!
-!                     do j = minTimeLevels, newmem % data % contentsTimeLevs
-!                        call wrfjedi_duplicate_field(dptr % i3a(dptr % contentsTimeLevs), newmem % data % i3)
-!                        newmem % data % i3a(j) = newmem % data % i3
-!                        deallocate(newmem % data % i3)
-!                     end do
-!                  else
-!                     call wrfjedi_duplicate_field(dptr % i3a(1), newmem % data % i3)
-!                  end if
-!               else if (associated(dptr % c0a)) then
-!                  if ( newmem % data % contentsTimeLevs > 1) then
-!                     allocate(newmem % data % c0a(newmem % data % contentsTimeLevs))
-!                     minTimeLevels = min(dptr % contentsTimeLevs, newmem % data % contentsTimeLevs)
-!                     do j = 1, minTimeLevels
-!                        call wrfjedi_duplicate_field(dptr % c0a(j), newmem % data % c0)
-!                        newmem % data % c0a(j) = newmem % data % c0
-!                        deallocate(newmem % data % c0)
-!                     end do
-!
-!                     do j = minTimeLevels, newmem % data % contentsTimeLevs
-!                        call wrfjedi_duplicate_field(dptr % c0a(dptr % contentsTimeLevs), newmem % data % c0)
-!                        newmem % data % c0a(j) = newmem % data % c0
-!                        deallocate(newmem % data % c0)
-!                     end do
-!                  else
-!                     call wrfjedi_duplicate_field(dptr % c0a(1), newmem % data % c0)
-!                  end if
-!               else if (associated(dptr % c1a)) then
-!                  if ( newmem % data % contentsTimeLevs > 1) then
-!                     allocate(newmem % data % c1a(newmem % data % contentsTimeLevs))
-!                     minTimeLevels = min(dptr % contentsTimeLevs, newmem % data % contentsTimeLevs)
-!                     do j = 1, minTimeLevels
-!                        call wrfjedi_duplicate_field(dptr % c1a(j), newmem % data % c1)
-!                        newmem % data % c1a(j) = newmem % data % c1
-!                        deallocate(newmem % data % c1)
-!                     end do
-!
-!                     do j = minTimeLevels, newmem % data % contentsTimeLevs
-!                        call wrfjedi_duplicate_field(dptr % c1a(dptr % contentsTimeLevs), newmem % data % c1)
-!                        newmem % data % c1a(j) = newmem % data % c1
-!                        deallocate(newmem % data % c1)
-!                     end do
-!                  else
-!                     call wrfjedi_duplicate_field(dptr % c1a(1), newmem % data % c1)
-!                  end if
-!               else if (associated(dptr % l0a)) then
-!                  if ( newmem % data % contentsTimeLevs > 1) then
-!                     allocate(newmem % data % l0a(newmem % data % contentsTimeLevs))
-!                     minTimeLevels = min(dptr % contentsTimeLevs, newmem % data % contentsTimeLevs)
-!                     do j = 1, minTimeLevels
-!                        call wrfjedi_duplicate_field(dptr % l0a(j), newmem % data % l0)
-!                        newmem % data % l0a(j) = newmem % data % l0
-!                        deallocate(newmem % data % l0)
-!                     end do
-!
-!                     do j = minTimeLevels, newmem % data % contentsTimeLevs
-!                        call wrfjedi_duplicate_field(dptr % l0a(dptr % contentsTimeLevs), newmem % data % l0)
-!                        newmem % data % l0a(j) = newmem % data % l0
-!                        deallocate(newmem % data % l0)
-!                     end do
-!                  else
-!                     call wrfjedi_duplicate_field(dptr % l0a(1), newmem % data % l0)
-!                  end if
-!               else
-!                  call pool_mesg('While cloning pool, member '//trim(ptr % key)//' has no valid field pointers.')
-!               end if
-!
-!            else if (ptr % contentsType == WRFJEDI_POOL_SUBPOOL) then
+!-----------------------------------------------------------------------
+   recursive subroutine wrfjedi_pool_clone_pool(srcPool, destPool, overrideTimeLevels)!{{{
+
+      implicit none
+
+      type (wrfjedi_pool_type), pointer :: srcPool
+      type (wrfjedi_pool_type), pointer :: destPool
+      integer, intent(in), optional :: overrideTimeLevels
+
+
+      integer :: i, j, newTimeLevels, minTimeLevels, threadNum
+      type (wrfjedi_pool_member_type), pointer :: ptr
+      type (fieldlist), pointer :: dptr
+      type (wrfjedi_pool_member_type), pointer :: newmem
+
+      threadNum = wrfjedi_threading_get_thread_num()
+      newTimeLevels = -1
+
+      if (present(overrideTimeLevels)) then
+         newTimeLevels = overrideTimeLevels
+
+         if (newTimeLevels < 1) then
+            call wrfjedi_pool_set_error_level(WRFJEDI_POOL_FATAL)
+            call pool_mesg('ERROR in wrfjedi_pool_clone_pool: Input time levels cannot be less than 1.')
+         end if
+      end if
+
+!TODO: Make use of overrideTimeLevels. This routine needs to create a new set of time levels.
+!TODO: should we force destPool to have the same table size as srcPool?
+
+      !TODO: Allow threading on copy calls below.
+      if ( threadNum == 0 ) then
+         ptr => srcPool % iteration_head
+         do while(associated(ptr))
+
+            allocate(newmem)
+            newmem % key = ptr % key
+            newmem % keyLen = ptr % keyLen
+            newmem % contentsType = ptr % contentsType
+            allocate(newmem % data)
+            newmem % data % Type = ptr % data % Type
+            newmem % data % Ndim = ptr % data % Ndim
+
+            if (ptr % contentsType == WRFJEDI_POOL_DIMENSION) then
+
+            else if (ptr % contentsType == WRFJEDI_POOL_CONFIG) then
+
+            else if (ptr % contentsType == WRFJEDI_POOL_FIELD) then
+
+               dptr => ptr % data
+               call wrfjedi_duplicate_fieldlist(dptr, newmem % data)
+
+            else if (ptr % contentsType == WRFJEDI_POOL_SUBPOOL) then
 !
 !                call wrfjedi_pool_create_pool(newmem % data % p, poolSize = ptr % data % p % size)
 !                call wrfjedi_pool_clone_pool(ptr % data % p, newmem % data % p)
 !
-!            end if
+            end if
 !
-!            if (.not. pool_add_member(destPool, newmem % key, newmem)) then
-!               call pool_mesg('Error: Had problems adding '//trim(newmem % key)//' to clone of pool.')
-!            end if
-!
-!            ptr => ptr % iteration_next
-!         end do
-!      end if
-!
-!   end subroutine wrfjedi_pool_clone_pool!}}}
+!            write(*,*) 'wrfjedi_pool_clone_pool=',trim(newmem % data % VarName)
+            if (.not. pool_add_member(destPool, newmem % key, newmem)) then
+               call pool_mesg('Error: Had problems adding '//trim(newmem % key)//' to clone of pool.')
+            end if
+
+            ptr => ptr % iteration_next
+         end do
+      end if
+
+   end subroutine wrfjedi_pool_clone_pool!}}}
 !
 !
 !!-----------------------------------------------------------------------
@@ -2192,6 +1688,50 @@ module wrfjedi_pool_routines
 !
 !   end subroutine wrfjedi_pool_link_parinfo!}}}
 !
+!!-----------------------------------------------------------------------
+!!  routine wrfjedi_pool_get_gridfield_2d_real
+!!
+!!> \brief WRFJEDI Pool 2D Real field add routine
+!!> \author Ming Hu
+!!> \date   03/27/2014
+!!> \details
+!!> This routine inserts field into inPool when field is a 2D real field
+!!
+!!-----------------------------------------------------------------------
+   subroutine wrfjedi_pool_get_gridfield_2d_real(infield, key, field)!{{{
+!
+
+      implicit none
+
+      type (fieldlist), intent(in), pointer :: infield
+      character (len=*), intent(in) :: key
+      type (field2DReal), pointer :: field
+
+!      write(*,*) 'in wrfjedi_pool_get_gridfield_2d_real:',trim(key)
+!      write(*,*) 'in wrfjedi_pool_get_gridfield_2d_real:',infield%VarName
+!      write(*,*) 'in wrfjedi_pool_get_gridfield_2d_real:',field%VarName
+
+      nullify(field%array)
+      if (associated(infield)) then
+
+         call field%fillFieldHead(infield)
+!         call field%printFieldHead()
+
+         if (infield % Type /= WRFJEDI_POOL_REAL) then
+            call pool_mesg('Error: Field '//trim(key)//' is not type real.')
+         end if
+         if (infield % Ndim /= 2) then
+            call pool_mesg('Error: Field '//trim(key)//' is not a 2-d field.')
+         end if
+!         write(*,*) 'MIN/MAX value: ', minval(infield % rfield_2d),maxval(infield % rfield_2d)
+         field%array => infield % rfield_2d
+      else
+
+         call pool_mesg('Error: Field '//trim(key)//' not found in grid field.')
+
+      end if
+
+   end subroutine wrfjedi_pool_get_gridfield_2d_real!}}}
 !
 !
 !!-----------------------------------------------------------------------
@@ -2282,16 +1822,16 @@ module wrfjedi_pool_routines
 !   end subroutine wrfjedi_pool_add_field_1d_real!}}}
 !
 !
-!!-----------------------------------------------------------------------
-!!  routine wrfjedi_pool_add_field_2d_real
-!!
-!!> \brief WRFJEDI Pool 2D Real field add routine
-!!> \author Ming Hu
-!!> \date   03/27/2014
-!!> \details
-!!> This routine inserts field into inPool when field is a 2D real field
-!!
-!!-----------------------------------------------------------------------
+!-----------------------------------------------------------------------
+!  routine wrfjedi_pool_add_field_2d_real
+!
+!> \brief WRFJEDI Pool 2D Real field add routine
+!> \author Ming Hu
+!> \date   03/27/2014
+!> \details
+!> This routine inserts field into inPool when field is a 2D real field
+!
+!-----------------------------------------------------------------------
    subroutine wrfjedi_pool_add_field_2d_real(inPool, key, field)!{{{
 !
       implicit none
@@ -2300,8 +1840,10 @@ module wrfjedi_pool_routines
       character (len=*), intent(in) :: key
       type (field2DReal), pointer :: field
 !
+      real(kind=RKIND), allocatable, target :: array(:,:)
       type (wrfjedi_pool_member_type), pointer :: newmem
       integer :: threadNum
+      integer :: ierr
 !
       threadNum = wrfjedi_threading_get_thread_num()
 !
@@ -2312,11 +1854,16 @@ module wrfjedi_pool_routines
          newmem % contentsType = WRFJEDI_POOL_FIELD
 !
          allocate(newmem % data)
+         call field%sendFieldHead(newmem % data)
          newmem % data % Type = WRFJEDI_POOL_REAL
          newmem % data % Ndim = 2
+         
          newmem % data % rfield_2d => field % array
+!         write(*,*) 'maxmin=',maxval(newmem % data % rfield_2d), &
+!                              minval(newmem % data % rfield_2d)
 !   
          if (.not. pool_add_member(inPool, key, newmem)) then
+            deallocate(newmem % data % rfield_2d)
             deallocate(newmem % data)
             deallocate(newmem)
          end if
@@ -3645,16 +3192,16 @@ module wrfjedi_pool_routines
 !   end subroutine wrfjedi_pool_get_field_1d_real!}}}
 !
 !
-!!-----------------------------------------------------------------------
-!!  subroutine wrfjedi_pool_get_field_2d_real
-!!
-!!> \brief WRFJEDI Pool 2D Real field get subroutine
-!!> \author Ming Hu
-!!> \date   03/27/2014
-!!> \details
-!!> This subroutine returns a pointer to the field associated with key in inPool.
-!!
-!!-----------------------------------------------------------------------
+!-----------------------------------------------------------------------
+!  subroutine wrfjedi_pool_get_field_2d_real
+!
+!> \brief WRFJEDI Pool 2D Real field get subroutine
+!> \author Ming Hu
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns a pointer to the field associated with key in inPool.
+!
+!-----------------------------------------------------------------------
    subroutine wrfjedi_pool_get_field_2d_real(inPool, key, field, timeLevel)!{{{
 
       implicit none
@@ -3685,18 +3232,9 @@ module wrfjedi_pool_routines
          if (mem % Ndim /= 2) then
             call pool_mesg('Error: Field '//trim(key)//' is not a 2-d field.')
          end if
-!         if ((mem % contentsTimeLevs > 1) .and. (.not. present(timeLevel))) then
-!            call pool_mesg('Error: Field '//trim(key)//' has more than one time level, but no timeLevel argument given.')
-!         end if
-!         if (mem % contentsTimeLevs < local_timeLevel) then
-!            call pool_mesg('Error: Field '//trim(key)//' has too few time levels.')
-!         end if
-         
-!         if (mem % contentsTimeLevs == 1) then
-            field%array => mem % rfield_2d
-!         else
-!            field => mem % rfield_2d !(local_timeLevel)
-!         end if
+
+          call field%fillFieldHead(mem)
+          field%array => mem % rfield_2d
 
       else
 
@@ -5497,92 +5035,92 @@ module wrfjedi_pool_routines
 !   end subroutine wrfjedi_pool_remove_package!}}}
 !
 !
-!!-----------------------------------------------------------------------
-!!  routine wrfjedi_pool_begin_iteration
-!!
-!!> \brief WRFJEDI Pool Begin Iteration Routine
-!!> \author Ming Hu
-!!> \date   03/27/2014
-!!> \details
-!!> This routine sets up the pool's internal iterator to iterate over fields.
-!!
-!!-----------------------------------------------------------------------
-!   subroutine wrfjedi_pool_begin_iteration(inPool)!{{{
+!-----------------------------------------------------------------------
+!  routine wrfjedi_pool_begin_iteration
 !
-!      implicit none
+!> \brief WRFJEDI Pool Begin Iteration Routine
+!> \author Ming Hu
+!> \date   03/27/2014
+!> \details
+!> This routine sets up the pool's internal iterator to iterate over fields.
 !
-!      type (wrfjedi_pool_type), intent(inout) :: inPool
+!-----------------------------------------------------------------------
+   subroutine wrfjedi_pool_begin_iteration(inPool)!{{{
+
+      implicit none
+
+      type (wrfjedi_pool_type), intent(inout) :: inPool
+
+      integer :: i, threadNum
+
+      threadNum = wrfjedi_threading_get_thread_num()
+
+      if ( threadNum == 0 ) then
+         inPool % iterator => inPool % iteration_head
+      end if
+
+      !$omp barrier
+
+   end subroutine wrfjedi_pool_begin_iteration!}}}
+
+
+!-----------------------------------------------------------------------
+!  subroutine wrfjedi_pool_get_next_member
 !
-!      integer :: i, threadNum
+!> \brief WRFJEDI Pool Iterate To Next Member subroutine
+!> \author Ming Hu
+!> \date   03/27/2014
+!> \details
+!> This function advances the internal iterator to the next member in the pool,
+!>  and returns an iterator type for the current member, if one exists. The function
+!>  returns .true. if a valid member was returned, and .false. if there are no members
+!>  left to be iterated over.
 !
-!      threadNum = wrfjedi_threading_get_thread_num()
-!
-!      if ( threadNum == 0 ) then
-!         inPool % iterator => inPool % iteration_head
-!      end if
-!
-!      !$omp barrier
-!
-!   end subroutine wrfjedi_pool_begin_iteration!}}}
-!
-!
-!!-----------------------------------------------------------------------
-!!  subroutine wrfjedi_pool_get_next_member
-!!
-!!> \brief WRFJEDI Pool Iterate To Next Member subroutine
-!!> \author Ming Hu
-!!> \date   03/27/2014
-!!> \details
-!!> This function advances the internal iterator to the next member in the pool,
-!!>  and returns an iterator type for the current member, if one exists. The function
-!!>  returns .true. if a valid member was returned, and .false. if there are no members
-!!>  left to be iterated over.
-!!
-!!-----------------------------------------------------------------------
-!   logical function wrfjedi_pool_get_next_member(inPool, iterator)!{{{
-!
-!      implicit none
-!
-!      type (wrfjedi_pool_type), intent(inout) :: inPool
-!      type (wrfjedi_pool_iterator_type),  intent(inout) :: iterator
-!
-!      integer :: i, threadNum
-!
-!      threadNum = wrfjedi_threading_get_thread_num()
-!      !$omp barrier
-!
-!      !
-!      ! As long as there are members left to be iterated over, the inPool%iterator
-!      !   should always be pointing to the next member to be returned
-!      !
-!      if (associated(inPool % iterator)) then
-!         iterator % memberName = inPool % iterator % key
-!         iterator % memberType = inPool % iterator % contentsType
-!         iterator % dataType = inPool % iterator % data % contentsType
-!         if (iterator % memberType == WRFJEDI_POOL_FIELD) then
-!            iterator % nDims = inPool % iterator % data % contentsDims
-!            iterator % nTimeLevels = inPool % iterator % data % contentsTimeLevs
-!         else if (iterator % memberType == WRFJEDI_POOL_DIMENSION) then
-!            iterator % nDims = inPool % iterator % data % contentsDims
-!         else
-!            iterator % nDims = 0
-!            iterator % nTimeLevels = 0
-!         end if
-!         wrfjedi_pool_get_next_member = .true.
-!      else
-!         wrfjedi_pool_get_next_member = .false.
-!      end if
-!
-!      !$omp barrier
-!
-!      if ( threadNum == 0 .and. associated(inPool % iterator) ) then
-!         ! Only thread 0 can advance iterator to next item
-!         inPool % iterator => inPool % iterator % iteration_next
-!      end if
-!
-!   end function wrfjedi_pool_get_next_member!}}}
-!
-!
+!-----------------------------------------------------------------------
+   logical function wrfjedi_pool_get_next_member(inPool, iterator)!{{{
+
+      implicit none
+
+      type (wrfjedi_pool_type), intent(inout) :: inPool
+      type (wrfjedi_pool_iterator_type),  intent(inout) :: iterator
+
+      integer :: i, threadNum
+
+      threadNum = wrfjedi_threading_get_thread_num()
+      !$omp barrier
+
+      !
+      ! As long as there are members left to be iterated over, the inPool%iterator
+      !   should always be pointing to the next member to be returned
+      !
+      if (associated(inPool % iterator)) then
+         iterator % memberName = inPool % iterator % key
+         iterator % memberType = inPool % iterator % contentsType
+         iterator % dataType = inPool % iterator % data % Type
+         if (iterator % memberType == WRFJEDI_POOL_FIELD) then
+            iterator % nDims = inPool % iterator % data % Ndim
+            iterator % nTimeLevels = 1
+         else if (iterator % memberType == WRFJEDI_POOL_DIMENSION) then
+            iterator % nDims = inPool % iterator % data % Ndim
+         else
+            iterator % nDims = 0
+            iterator % nTimeLevels = 0
+         end if
+         wrfjedi_pool_get_next_member = .true.
+      else
+         wrfjedi_pool_get_next_member = .false.
+      end if
+
+      !$omp barrier
+
+      if ( threadNum == 0 .and. associated(inPool % iterator) ) then
+         ! Only thread 0 can advance iterator to next item
+         inPool % iterator => inPool % iterator % iteration_next
+      end if
+
+   end function wrfjedi_pool_get_next_member!}}}
+
+
 !!-----------------------------------------------------------------------
 !!  subroutine wrfjedi_pool_shift_time_levels
 !!
@@ -5952,87 +5490,111 @@ module wrfjedi_pool_routines
          if ( threadNum == 0 ) then
             write(stderrUnit,*) trim(mesg)
          end if
-         call wrfjedi_dmpar_global_abort(trim(mesg))
+!mhu         call wrfjedi_dmpar_global_abort(trim(mesg))
+         stop 1234
       end if
 
    end subroutine pool_mesg!}}}
 !
 !
-!   subroutine pool_print_table_size(pool)!{{{
+   subroutine pool_print_table_size(pool)!{{{
+
+      implicit none
+
+      type (wrfjedi_pool_type), intent(in) :: pool
+
+      integer :: i, head_size, total_size
+      type (wrfjedi_pool_member_type), pointer :: ptr
+
+
+      total_size = 0
+      do i=1,pool % size
+         head_size = 0
+         ptr => pool % table(i) % head
+         do while (associated(ptr))
+            head_size = head_size + 1
+            ptr => ptr % next
+         end do
+         write(stderrUnit,*) 'List ', i, ' : ', head_size
+         total_size = total_size + head_size
+      end do
+      write(stderrUnit,*) '----------------'
+      write(stderrUnit,*) 'Total: ', total_size
+
+   end subroutine pool_print_table_size!}}}
+
+
+   recursive subroutine pool_print_members(pool)!{{{
+
+      implicit none
+
+      type (wrfjedi_pool_type), intent(inout) :: pool
+
+      integer :: i
+      type (wrfjedi_pool_type), pointer :: subpool
+      type (wrfjedi_pool_member_type), pointer :: ptr
+      type (wrfjedi_pool_iterator_type) :: poolItr
 !
-!      implicit none
+      real (kind=RKIND), pointer :: realPtr
+      integer, pointer :: intPtr
+      logical, pointer :: logPtr
+      character (len=StrKIND) :: charPtr
+      type (field2DReal), pointer :: field2d
+      integer :: j
+
+      write(stderrUnit, *) '   Constants: '
+      write(stderrUnit, *) '   Real: ', WRFJEDI_POOL_REAL
+      write(stderrUnit, *) '   Integer: ', WRFJEDI_POOL_INTEGER
+      write(stderrUnit, *) '   Logical: ', WRFJEDI_POOL_LOGICAL
+      write(stderrUnit, *) '   Character: ', WRFJEDI_POOL_CHARACTER
+
+!     write(stderrUnit, *) 'Pool Size:'
+!     call pool_print_table_size(pool)
 !
-!      type (wrfjedi_pool_type), intent(in) :: pool
-!
-!      integer :: i, head_size, total_size
-!      type (wrfjedi_pool_member_type), pointer :: ptr
-!
-!
-!      total_size = 0
-!      do i=1,pool % size
-!         head_size = 0
-!         ptr => pool % table(i) % head
-!         do while (associated(ptr))
-!            head_size = head_size + 1
-!            ptr => ptr % next
-!         end do
-!         write(stderrUnit,*) 'List ', i, ' : ', head_size
-!         total_size = total_size + head_size
-!      end do
-!      write(stderrUnit,*) '----------------'
-!      write(stderrUnit,*) 'Total: ', total_size
-!
-!   end subroutine pool_print_table_size!}}}
-!
-!
-!   recursive subroutine pool_print_members(pool)!{{{
-!
-!      implicit none
-!
-!      type (wrfjedi_pool_type), intent(inout) :: pool
-!
-!      integer :: i
-!      type (wrfjedi_pool_type), pointer :: subpool
-!      type (wrfjedi_pool_member_type), pointer :: ptr
-!      type (wrfjedi_pool_iterator_type) :: poolItr
-!
-!      real (kind=RKIND), pointer :: realPtr
-!      integer, pointer :: intPtr
-!      logical, pointer :: logPtr
-!      character (len=StrKIND) :: charPtr
-!
-!      write(stderrUnit, *) '   Constants: '
-!      write(stderrUnit, *) '   Real: ', WRFJEDI_POOL_REAL
-!      write(stderrUnit, *) '   Integer: ', WRFJEDI_POOL_INTEGER
-!      write(stderrUnit, *) '   Logical: ', WRFJEDI_POOL_LOGICAL
-!      write(stderrUnit, *) '   Character: ', WRFJEDI_POOL_CHARACTER
-!
-!!     write(stderrUnit, *) 'Pool Size:'
-!!     call pool_print_table_size(pool)
-!
-!      call wrfjedi_pool_begin_iteration(pool)
-!      do while(wrfjedi_pool_get_next_member(pool, poolItr))
-!
-!         if (poolItr % memberType == WRFJEDI_POOL_SUBPOOL) then
-!            write(stderrUnit, *) '** Found subpool named: ', trim(poolItr % memberName)
+      call wrfjedi_pool_begin_iteration(pool)
+      do while(wrfjedi_pool_get_next_member(pool, poolItr))
+
+         if (poolItr % memberType == WRFJEDI_POOL_SUBPOOL) then
+            write(stderrUnit, *) '** Found subpool named: ', trim(poolItr % memberName)
 !            call wrfjedi_pool_get_subpool(pool, trim(poolItr % memberName), subpool)
 !            call pool_print_members(subpool)
-!         else if (poolItr % memberType == WRFJEDI_POOL_CONFIG) then
-!            write(stderrUnit, *) '   Config Option: ', trim(poolItr % memberName), poolItr % dataType
-!         else if (poolItr % memberType == WRFJEDI_POOL_DIMENSION) then
-!            write(stderrUnit, *) '   Dimension: ', trim(poolItr % memberName), poolItr % dataType, poolItr % nDims
-!         else if (poolItr % memberType == WRFJEDI_POOL_PACKAGE) then
-!            write(stderrUnit, *) '   Package: ', trim(poolItr % memberName)
-!         else if (poolItr % memberType == WRFJEDI_POOL_FIELD) then
-!            write(stderrUnit, *) '   Field: ', trim(poolItr % memberName), poolItr % dataType, poolItr % nDims, poolItr % nTimeLevels
-!         end if
-!      end do
-!      write(stderrUnit, *) 'Done with pool'
-!      write(stderrUnit, *) ''
-!
-!   end subroutine pool_print_members!}}}
-!
-!
+         else if (poolItr % memberType == WRFJEDI_POOL_CONFIG) then
+            write(stderrUnit, *) '   Config Option: ', trim(poolItr % memberName), poolItr % dataType
+         else if (poolItr % memberType == WRFJEDI_POOL_DIMENSION) then
+            write(stderrUnit, *) '   Dimension: ', trim(poolItr % memberName), poolItr % dataType, poolItr % nDims
+         else if (poolItr % memberType == WRFJEDI_POOL_PACKAGE) then
+            write(stderrUnit, *) '   Package: ', trim(poolItr % memberName)
+         else if (poolItr % memberType == WRFJEDI_POOL_FIELD) then
+            write(stderrUnit, *) '   Field: ', trim(poolItr % memberName), ' ',poolItr % dataType, poolItr % nDims,&
+                                                poolItr % nTimeLevels
+
+            if (poolItr % dataType == WRFJEDI_POOL_REAL) then
+               if (poolItr % nDims == 0) then
+!                   call wrfjedi_pool_get_field(pool_c, trim(poolItr % memberName), field0d)
+               else if (poolItr % nDims == 2) then
+                   allocate(field2d)
+                   call wrfjedi_pool_get_field(pool, trim(poolItr % memberName), field2d)
+                   write(*,*) 'pool_print_members===>  2D real MIN/MAX value: ', &
+                                  minval(field2d % array),maxval(field2d % array)
+                   do j=field2d%sm2,field2d%sd2
+                      write(*,*) j,field2d % array(field2d%sm1:field2d%sd1,j)
+                   enddo
+                   do j=field2d%ed2,field2d%em2
+                      write(*,*) j,field2d % array(field2d%ed1:field2d%em1,j)
+                   enddo
+                   call field2d%printFieldHead()
+                   deallocate(field2d)
+               endif
+            endif
+
+         end if
+      end do
+      write(stderrUnit, *) 'Done with pool'
+      write(stderrUnit, *) ''
+
+   end subroutine pool_print_members!}}}
+
+
 !   integer function pool_get_member_decomp_type(dimName) result(decompType)!{{{
 !      character (len=*) :: dimName
 !
@@ -6061,5 +5623,51 @@ module wrfjedi_pool_routines
 
    end function wrfjedi_threading_get_thread_num!}}}
 
+!
+   subroutine wrfjedi_duplicate_fieldlist(infield, newfield)
+
+      type (fieldlist), intent(in), pointer :: infield
+      type (fieldlist), intent(inout), pointer :: newfield
+!
+      type (field2DReal), pointer :: field
+!
+      integer :: sm1,em1,sm2,em2,sm3,em3
+!
+      integer :: ierr
+
+      if (associated(infield)) then
+   
+!         write(*,*) '=======check duplicate_fieldlist head:'
+         allocate(field)
+         call field%fillFieldHead(infield)
+         call field%sendFieldHead(newfield)
+!         call field%printFieldHead()
+         sm1=newfield%sm1
+         em1=newfield%em1
+         sm2=newfield%sm2
+         em2=newfield%em2
+         sm3=newfield%sm3
+         em3=newfield%em3
+         deallocate(field)
+         write(*,*) '=======check duplicate_fieldlist head:',sm1,em1,sm2,em2,sm3,em3
+         if(newfield%Ndim == 2 .and. newfield%Type==WRFJEDI_POOL_REAL ) then
+            ALLOCATE(newfield % rfield_2d(sm1:em1,sm2:em2),STAT=ierr)
+            if(ierr==0) then
+               newfield % rfield_2d = infield % rfield_2d
+            endif
+
+         elseif(newfield%Ndim == 3 .and. newfield%Type==WRFJEDI_POOL_REAL ) then
+            ALLOCATE(newfield % rfield_3d(sm1:em1,sm2:em2,sm3:em3),STAT=ierr)
+            if(ierr==0) then
+               newfield % rfield_3d = infield % rfield_3d
+            endif
+         else
+            call pool_mesg('Error: unkonw Field '//trim(newfield%DataName)//' in input field.')
+         endif
+      else
+         call pool_mesg('Error: input Field is not associated.')
+      end if
+
+   end subroutine wrfjedi_duplicate_fieldlist
 !
 end module wrfjedi_pool_routines

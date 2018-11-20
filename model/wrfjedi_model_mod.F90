@@ -90,7 +90,9 @@ subroutine model_setup(self, geom, c_conf)
    self % dt = model_config_rec% dt(1)
 
    ! GD:  we need to update some parameters here regarding the json namelist file of oops.
-   ! Also, we can add new DA parameters in the MPAS configs file if needed.
+
+
+   ! Also, we can add new DA parameters in the WRF configs file if needed.
 !   write(*,*)'config_dt: ',config_dt
 !!   write(*,*)'config_start_time: ',trim(config_start_time)
 !   write(*,*)'config_restart_timestamp_name: ',trim(config_restart_timestamp_name)
@@ -100,8 +102,6 @@ subroutine model_setup(self, geom, c_conf)
    write(*,*)'geom % ny: ',geom % e_sn(1)
    write(*,*)'geom % nz: ',geom % e_vert(1)
    write(*,*)'ststep: ', self % dt
-
-
 
    ! GD: needs a converter from oops json file format to mpas if the json file drives MPAS
    ! otherwise mpas namelist file can be used.

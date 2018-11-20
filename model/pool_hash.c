@@ -8,7 +8,7 @@
 #endif
 #endif
 
-void pool_hash(int* hash, char* key, int* len)
+void pool_hash_(int* hash, char* key, int* len)
 {
         int i;
         unsigned int whash;
