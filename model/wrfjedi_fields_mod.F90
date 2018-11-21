@@ -17,13 +17,15 @@ use wrfjedi_getvaltraj_mod, only: wrfjedi_getvaltraj
 
 use wrfjedi_pool_routines, only : wrfjedi_pool_type, &
                                   wrfjedi_pool_iterator_type, &
-                                  wrfjedi_pool_get_gridfield, &
                                   wrfjedi_pool_add_field, &
                                   wrfjedi_pool_get_field, &
                                   wrfjedi_pool_get_array
 use wrfjedi_pool_routines, only : pool_print_members
+use wrfjedi_pool_routines, only : wrfjedi_pool_clone_pool, &
+                                  wrfjedi_pool_create_pool
 
-use wrfjedi4da_mod, only : da_make_subpool_wrfjedi
+use wrfjedi4da_mod, only : da_make_subpool_wrfjedi,      &
+                           da_check_grid_content_wrfjedi
 
 !use wrfjedi_dmpar
 !use wrfjedi_derived_types
@@ -64,9 +66,9 @@ type :: wrfjedi_field
   type (wrfjedi_geom), pointer :: geom              ! grid and MPI infos
   integer :: nf                                  ! Number of variables in fld
   character(len=MAXVARLEN), allocatable  :: fldnames(:) ! Variable identifiers
-!  type (wrfjedi_pool_type), pointer  :: allFields   !---> background variables (to be analyzed + auxiliary but not real data space)
+  type (wrfjedi_pool_type), pointer  :: subFieldsBk !---> background variables (to be analyzed but not real data space)
   type (wrfjedi_pool_type), pointer  :: subFields   !---> state variables (to be analyzed with real space saved)
-  type (wrfjedi_pool_type), pointer  :: auxFields   !---> auxiliary variables, such as pressure, t2m, u10, v10, Tsfc
+  type (wrfjedi_pool_type), pointer  :: auxFields   !---> auxiliary variables, such as pressure, t2m, u10, v10, Tsfc (No real space)
 !  type (MPAS_Clock_type), pointer :: clock
 end type wrfjedi_field
 
@@ -78,7 +80,7 @@ end type wrfjedi_field
 !> Global registry
 type(registry_t) :: wrfjedi_field_registry
 
-integer, parameter :: nf_aux = 21
+integer, parameter :: nf_aux = 12
 
 ! ------------------------------------------------------------------------------
 contains
@@ -87,7 +89,7 @@ contains
 #include "linkedList_c.f"
 
 ! ------------------------------------------------------------------------------
-subroutine initial(self, geom, vars)
+subroutine create(self, geom, vars)
 
 !    use wrfjedi_kind_types
 
@@ -101,9 +103,6 @@ subroutine initial(self, geom, vars)
     integer :: ierr!, ii
 
     character(len=22), allocatable  :: fldnames_aux(:)
-
-!   real (kind=kind_real), dimension(:,:), pointer :: r2d_ptr_a
-!   type (field2DReal), pointer :: field2d, field2d_src
 
     ! from the namelist
     self % nf =  vars % nv
@@ -120,14 +119,37 @@ subroutine initial(self, geom, vars)
       call abor1_ftn("wrfjedi_fields: geom not associated")
     end if
 
-    write(0,*)'-- Create a sub Pool from list of variable ',self % nf
-    call da_make_subpool_wrfjedi(self % geom % wrfjedi_head_grid, self % subFields, self % nf, self % fldnames, nfields)
-    call pool_print_members(self % subFields)
+!    write(*,*) 'List what we have from WRF grid space'
+!    call da_check_grid_content_wrfjedi(self % geom % wrfjedi_head_grid)
+!    call abor1_ftn("wrfjedi_fields: debug stop point")
 
-    call abor1_ftn("wrfjedi_fields: debug stop point")
-end subroutine initial
+    write(*,*)'-- Create a sub Pool from list of variable ',self % nf
+    call da_make_subpool_wrfjedi(self % geom % wrfjedi_head_grid, self % subFieldsBk, self % nf, self % fldnames, nfields)
+    if ( self % nf .ne. nfields  ) then
+       call abor1_ftn("wrfjedi_fields:create: dimension mismatch ", self % nf, nfields)
+    end  if
+    call pool_print_members(self % subFieldsBk, 'subFieldsBk')
 
-subroutine create(self, geom, vars)
+    call wrfjedi_pool_create_pool(self % subFields, nfields)
+    call wrfjedi_pool_clone_pool(self % subFieldsBk, self % subFields)
+    call pool_print_members(self % subFields, 'subFields')
+
+    !--- TODO: aux test: BJJ  !- get this from json ???
+    allocate(fldnames_aux(nf_aux))
+    fldnames_aux = [ character(len=22) :: "P_TOP","ZNU","ZNW","XLAT","XLONG","PH0","PHP",&
+                                          "MUB","Q2","T2","U10","V10" ]
+    write(*,*)'-- Create a sub Pool for auxFields'
+    call da_make_subpool_wrfjedi(self % geom % wrfjedi_head_grid, self % auxFields, nf_aux, fldnames_aux, nfields)
+    deallocate(fldnames_aux)
+    if ( nf_aux .ne. nfields  ) then
+       call abor1_ftn("wrfjedi_fields:create: dimension mismatch ",nf_aux, nfields)
+    end  if
+    call pool_print_members(self % auxFields, 'auxFields')
+
+!    call abor1_ftn("wrfjedi_fields: debug stop point")
+end subroutine create
+
+subroutine initial(self, geom, vars)
 
 !    use wrfjedi_kind_types
 
@@ -203,7 +225,7 @@ subroutine create(self, geom, vars)
 
     return
 
-end subroutine create
+end subroutine initial
 
 ! ------------------------------------------------------------------------------
 

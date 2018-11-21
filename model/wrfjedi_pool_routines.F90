@@ -1,4 +1,3 @@
-!
 !***********************************************************************
 !
 !  wrfjedi_pool_routines
@@ -14,7 +13,11 @@ module wrfjedi_pool_routines
 
    use wrfjedi_kinds,      only : StrKIND,RKIND
    use module_domain_type, only : fieldlist
-   use wrfjedi_derived_types, only : field2DReal,field2DInteger
+   use wrfjedi_derived_types, only : field0DReal,field0DInteger, &
+                                     field1DReal,field1DInteger, &
+                                     field2DReal,field2DInteger, &
+                                     field3DReal,field3DInteger, &
+                                     field4DReal,field4DInteger
 !   use wrfjedi_io_units
 !   use wrfjedi_field_routines
 !   use wrfjedi_threading
@@ -107,20 +110,29 @@ module wrfjedi_pool_routines
    end type wrfjedi_pool_field_info_type
 
    interface wrfjedi_pool_get_gridfield
+      module procedure wrfjedi_pool_get_gridfield_0d_real
+      module procedure wrfjedi_pool_get_gridfield_1d_real
       module procedure wrfjedi_pool_get_gridfield_2d_real
+      module procedure wrfjedi_pool_get_gridfield_3d_real
+      module procedure wrfjedi_pool_get_gridfield_4d_real
+      module procedure wrfjedi_pool_get_gridfield_0d_int
+      module procedure wrfjedi_pool_get_gridfield_1d_int
+      module procedure wrfjedi_pool_get_gridfield_2d_int
+      module procedure wrfjedi_pool_get_gridfield_3d_int
+      module procedure wrfjedi_pool_get_gridfield_4d_int
    end interface wrfjedi_pool_get_gridfield
    
    interface wrfjedi_pool_add_field
-!      module procedure wrfjedi_pool_add_field_0d_real
-!      module procedure wrfjedi_pool_add_field_1d_real
+      module procedure wrfjedi_pool_add_field_0d_real
+      module procedure wrfjedi_pool_add_field_1d_real
       module procedure wrfjedi_pool_add_field_2d_real
-!      module procedure wrfjedi_pool_add_field_3d_real
-!      module procedure wrfjedi_pool_add_field_4d_real
+      module procedure wrfjedi_pool_add_field_3d_real
+      module procedure wrfjedi_pool_add_field_4d_real
 !      module procedure wrfjedi_pool_add_field_5d_real
-!      module procedure wrfjedi_pool_add_field_0d_int
-!      module procedure wrfjedi_pool_add_field_1d_int
-!      module procedure wrfjedi_pool_add_field_2d_int
-!      module procedure wrfjedi_pool_add_field_3d_int
+      module procedure wrfjedi_pool_add_field_0d_int
+      module procedure wrfjedi_pool_add_field_1d_int
+      module procedure wrfjedi_pool_add_field_2d_int
+      module procedure wrfjedi_pool_add_field_3d_int
 !      module procedure wrfjedi_pool_add_field_0d_char
 !      module procedure wrfjedi_pool_add_field_1d_char
 !      module procedure wrfjedi_pool_add_field_0d_reals
@@ -138,31 +150,31 @@ module wrfjedi_pool_routines
    end interface
 
    interface wrfjedi_pool_get_field
-!      module procedure wrfjedi_pool_get_field_0d_real
-!      module procedure wrfjedi_pool_get_field_1d_real
+      module procedure wrfjedi_pool_get_field_0d_real
+      module procedure wrfjedi_pool_get_field_1d_real
       module procedure wrfjedi_pool_get_field_2d_real
-!      module procedure wrfjedi_pool_get_field_3d_real
-!      module procedure wrfjedi_pool_get_field_4d_real
+      module procedure wrfjedi_pool_get_field_3d_real
+      module procedure wrfjedi_pool_get_field_4d_real
 !      module procedure wrfjedi_pool_get_field_5d_real
-!      module procedure wrfjedi_pool_get_field_0d_int
-!      module procedure wrfjedi_pool_get_field_1d_int
-!      module procedure wrfjedi_pool_get_field_2d_int
-!      module procedure wrfjedi_pool_get_field_3d_int
+      module procedure wrfjedi_pool_get_field_0d_int
+      module procedure wrfjedi_pool_get_field_1d_int
+      module procedure wrfjedi_pool_get_field_2d_int
+      module procedure wrfjedi_pool_get_field_3d_int
 !      module procedure wrfjedi_pool_get_field_0d_char
 !      module procedure wrfjedi_pool_get_field_1d_char
    end interface
 
    interface wrfjedi_pool_get_array
-!      module procedure wrfjedi_pool_get_array_0d_real
-!      module procedure wrfjedi_pool_get_array_1d_real
+      module procedure wrfjedi_pool_get_array_0d_real
+      module procedure wrfjedi_pool_get_array_1d_real
       module procedure wrfjedi_pool_get_array_2d_real
-!      module procedure wrfjedi_pool_get_array_3d_real
-!      module procedure wrfjedi_pool_get_array_4d_real
+      module procedure wrfjedi_pool_get_array_3d_real
+      module procedure wrfjedi_pool_get_array_4d_real
 !      module procedure wrfjedi_pool_get_array_5d_real
-!      module procedure wrfjedi_pool_get_array_0d_int
-!      module procedure wrfjedi_pool_get_array_1d_int
-!      module procedure wrfjedi_pool_get_array_2d_int
-!      module procedure wrfjedi_pool_get_array_3d_int
+      module procedure wrfjedi_pool_get_array_0d_int
+      module procedure wrfjedi_pool_get_array_1d_int
+      module procedure wrfjedi_pool_get_array_2d_int
+      module procedure wrfjedi_pool_get_array_3d_int
 !      module procedure wrfjedi_pool_get_array_0d_char
 !      module procedure wrfjedi_pool_get_array_1d_char
    end interface
@@ -287,18 +299,24 @@ module wrfjedi_pool_routines
 !>  This routine will destroy a pool associated with inPool.
 !
 !-----------------------------------------------------------------------
-   recursive subroutine wrfjedi_pool_destroy_pool(inPool)!{{{
+   recursive subroutine wrfjedi_pool_destroy_pool(inPool,releasemem)!{{{
 
       implicit none
 
       type (wrfjedi_pool_type), pointer :: inPool
+      logical,intent(in),optional :: releasemem
 
       integer :: i, j
       type (wrfjedi_pool_member_type), pointer :: ptr
       type (fieldlist), pointer :: dptr
       integer :: local_err, threadNum
+      logical :: ifreleasemem
 
       threadNum = wrfjedi_threading_get_thread_num()
+      ifreleasemem=.false.
+      if(present(releasemem)) then
+        if(releasemem) ifreleasemem=.true.
+      endif
 
       if ( threadNum == 0 ) then
          do i=1,inPool % size
@@ -307,6 +325,7 @@ module wrfjedi_pool_routines
             do while(associated(inPool % table(i) % head))
                ptr => inPool % table(i) % head
                inPool % table(i) % head => inPool % table(i) % head % next
+               write(*,*) 'wrfjedi_pool_destroy_pool ==>',trim(ptr % data % VarName),ifreleasemem
    
                if (ptr % contentsType == WRFJEDI_POOL_DIMENSION) then
    
@@ -316,54 +335,45 @@ module wrfjedi_pool_routines
    
                   dptr => ptr % data
    
-                  ! Do this through brute force...
-                  if (associated(dptr % rfield_0d)) then
-                     deallocate(dptr % rfield_0d, stat=local_err)
-                  else if (associated(dptr % rfield_1d)) then
-                     deallocate(dptr % rfield_1d, stat=local_err)
-                  else if (associated(dptr % rfield_2d)) then
-                      deallocate(dptr % rfield_2d, stat=local_err)
-                  else if (associated(dptr % rfield_3d)) then
-                     deallocate(dptr % rfield_3d, stat=local_err)
-                  else if (associated(dptr % rfield_4d)) then
-                     deallocate(dptr % rfield_4d, stat=local_err)
-                  else if (associated(dptr % rfield_5d)) then
-                     deallocate(dptr % rfield_5d, stat=local_err)
-                  else if (associated(dptr % rfield_6d)) then
-                     deallocate(dptr % rfield_6d, stat=local_err)
-                  else if (associated(dptr % dfield_0d)) then
-                     deallocate(dptr % dfield_0d, stat=local_err)
-                  else if (associated(dptr % dfield_1d)) then
-                     deallocate(dptr % dfield_1d, stat=local_err)
-                  else if (associated(dptr % dfield_2d)) then
-                     deallocate(dptr % dfield_2d, stat=local_err)
-                  else if (associated(dptr % dfield_3d)) then
-                     deallocate(dptr % dfield_3d, stat=local_err)
-                  else if (associated(dptr % dfield_4d)) then
-                     deallocate(dptr % dfield_4d, stat=local_err)
-                  else if (associated(dptr % ifield_0d)) then
-                     deallocate(dptr % ifield_0d, stat=local_err)
-                  else if (associated(dptr % ifield_1d)) then
-                     deallocate(dptr % ifield_1d, stat=local_err)
-                  else if (associated(dptr % ifield_2d)) then
-                     deallocate(dptr % ifield_2d, stat=local_err)
-                  else if (associated(dptr % ifield_3d)) then
-                     deallocate(dptr % ifield_3d, stat=local_err)
-                  else if (associated(dptr % ifield_4d)) then
-                     deallocate(dptr % ifield_4d, stat=local_err)
-                  else if (associated(dptr % ifield_5d)) then
-                     deallocate(dptr % ifield_5d, stat=local_err)
-                  else if (associated(dptr % ifield_6d)) then
-                     deallocate(dptr % ifield_6d, stat=local_err)
-                  else if (associated(dptr % lfield_0d)) then
-                     deallocate(dptr % lfield_0d, stat=local_err)
-                  else if (associated(dptr % lfield_1d)) then
-                     deallocate(dptr % lfield_1d, stat=local_err)
-                  else if (associated(dptr % lfield_2d)) then
-                     deallocate(dptr % lfield_2d, stat=local_err)
+!                 write(*,*)  trim(dptr%VarName),dptr%Type,dptr%Ndim
+                  if(dptr%Type==WRFJEDI_POOL_REAL) then
+                     if(dptr%Ndim == 0) then
+                        if(ifreleasemem) deallocate(dptr % rfield_0d, stat=local_err)
+                        nullify(dptr % rfield_0d)
+                     elseif(dptr%Ndim == 1) then
+                        if(ifreleasemem) deallocate(dptr % rfield_1d, stat=local_err)
+                        nullify(dptr % rfield_1d)
+                     else if(dptr%Ndim == 2) then
+                        if(ifreleasemem) deallocate(dptr % rfield_2d, stat=local_err)
+                        nullify(dptr % rfield_2d)
+                     else if(dptr%Ndim == 3) then
+                        if(ifreleasemem) deallocate(dptr % rfield_3d, stat=local_err)
+                        nullify(dptr % rfield_3d)
+                     else if(dptr%Ndim == 4) then
+                        if(ifreleasemem) deallocate(dptr % rfield_4d, stat=local_err)
+                        nullify(dptr % rfield_4d)
+                     else
+                        call pool_mesg('While destroying pool, member '//trim(ptr % key)//' has no valid dimension.')
+                     endif
+                  elseif(dptr%Type==WRFJEDI_POOL_INTEGER) then
+                     if(dptr%Ndim == 0) then
+                        if(ifreleasemem) deallocate(dptr % ifield_0d, stat=local_err)
+                        nullify(dptr % ifield_0d)
+                     elseif(dptr%Ndim == 1) then
+                        if(ifreleasemem) deallocate(dptr % ifield_1d, stat=local_err)
+                        nullify(dptr % ifield_1d)
+                     else if(dptr%Ndim == 2) then
+                        if(ifreleasemem) deallocate(dptr % ifield_2d, stat=local_err)
+                        nullify(dptr % ifield_2d)
+                     else if(dptr%Ndim == 3) then
+                        if(ifreleasemem) deallocate(dptr % ifield_3d, stat=local_err)
+                        nullify(dptr % ifield_3d)
+                     else
+                        call pool_mesg('While destroying pool, member '//trim(ptr % key)//' has no valid dimension.')
+                     endif
                   else
-                     call pool_mesg('While destroying pool, member '//trim(ptr % key)//' has no valid field pointers.')
-                  end if
+                     call pool_mesg('While destroying pool, member '//trim(ptr % key)//' has no valid variable type.')
+                  endif
    
                else if (ptr % contentsType == WRFJEDI_POOL_SUBPOOL) then
    
@@ -1688,16 +1698,300 @@ module wrfjedi_pool_routines
 !
 !   end subroutine wrfjedi_pool_link_parinfo!}}}
 !
-!!-----------------------------------------------------------------------
-!!  routine wrfjedi_pool_get_gridfield_2d_real
-!!
-!!> \brief WRFJEDI Pool 2D Real field add routine
-!!> \author Ming Hu
-!!> \date   03/27/2014
-!!> \details
-!!> This routine inserts field into inPool when field is a 2D real field
-!!
-!!-----------------------------------------------------------------------
+!
+!-----------------------------------------------------------------------
+!  routine wrfjedi_pool_get_gridfield_0d_int
+!
+!> \brief WRFJEDI Pool get 0D Integer field from grid field
+!> \author Ming Hu
+!> \date   11/19/2018
+!> \details
+!> This routine read field from grid type when field is a 0D integer field
+!
+!-----------------------------------------------------------------------
+   subroutine wrfjedi_pool_get_gridfield_0d_int(infield, key, field)!{{{
+!
+
+      implicit none
+
+      type (fieldlist), intent(in), pointer :: infield
+      character (len=*), intent(in) :: key
+      type (field0DInteger), pointer :: field
+
+      nullify(field%array)
+      if (associated(infield)) then
+
+         call field%fillFieldHead(infield)
+
+         if (infield % Type /= WRFJEDI_POOL_INTEGER) then
+            call pool_mesg('Error: Field '//trim(key)//' is not type integer.')
+         end if
+         if (infield % Ndim /= 0) then
+            call pool_mesg('Error: Field '//trim(key)//' is not a 0-d field.')
+         end if
+!         write(*,*) 'MIN/MAX value: ', minval(infield % ifield_1d),maxval(infield % ifield_1d)
+         field%array => infield % ifield_0d
+      else
+
+         call pool_mesg('Error: Field '//trim(key)//' not found in grid field.')
+
+      end if
+
+   end subroutine wrfjedi_pool_get_gridfield_0d_int!}}}
+!
+
+!-----------------------------------------------------------------------
+!  routine wrfjedi_pool_get_gridfield_1d_int
+!
+!> \brief WRFJEDI Pool get 1D Integer field from grid field
+!> \author Ming Hu
+!> \date   11/19/2018
+!> \details
+!> This routine read field from grid type when field is a 1D integer field
+!
+!-----------------------------------------------------------------------
+   subroutine wrfjedi_pool_get_gridfield_1d_int(infield, key, field)!{{{
+!
+
+      implicit none
+
+      type (fieldlist), intent(in), pointer :: infield
+      character (len=*), intent(in) :: key
+      type (field1DInteger), pointer :: field
+
+      nullify(field%array)
+      if (associated(infield)) then
+
+         call field%fillFieldHead(infield)
+
+         if (infield % Type /= WRFJEDI_POOL_INTEGER) then
+            call pool_mesg('Error: Field '//trim(key)//' is not type integer.')
+         end if
+         if (infield % Ndim /= 1) then
+            call pool_mesg('Error: Field '//trim(key)//' is not a 1-d field.')
+         end if
+!         write(*,*) 'MIN/MAX value: ', minval(infield % ifield_1d),maxval(infield % ifield_1d)
+         field%array => infield % ifield_1d
+      else
+
+         call pool_mesg('Error: Field '//trim(key)//' not found in grid field.')
+
+      end if
+
+   end subroutine wrfjedi_pool_get_gridfield_1d_int!}}}
+!
+!-----------------------------------------------------------------------
+!  routine wrfjedi_pool_get_gridfield_2d_int
+!
+!> \brief WRFJEDI Pool get 2D Integer field from grid field
+!> \author Ming Hu
+!> \date   11/19/2018
+!> \details
+!> This routine read field from grid type when field is a 2D integer field
+!
+!-----------------------------------------------------------------------
+   subroutine wrfjedi_pool_get_gridfield_2d_int(infield, key, field)!{{{
+!
+
+      implicit none
+
+      type (fieldlist), intent(in), pointer :: infield
+      character (len=*), intent(in) :: key
+      type (field2DInteger), pointer :: field
+
+      nullify(field%array)
+      if (associated(infield)) then
+
+         call field%fillFieldHead(infield)
+
+         if (infield % Type /= WRFJEDI_POOL_INTEGER) then
+            call pool_mesg('Error: Field '//trim(key)//' is not type integer.')
+         end if
+         if (infield % Ndim /= 2) then
+            call pool_mesg('Error: Field '//trim(key)//' is not a 2-d field.')
+         end if
+!         write(*,*) 'MIN/MAX value: ', minval(infield % ifield_2d),maxval(infield % ifield_2d)
+         field%array => infield % ifield_2d
+      else
+
+         call pool_mesg('Error: Field '//trim(key)//' not found in grid field.')
+
+      end if
+
+   end subroutine wrfjedi_pool_get_gridfield_2d_int!}}}
+!
+
+!-----------------------------------------------------------------------
+!  routine wrfjedi_pool_get_gridfield_3d_int
+!
+!> \brief WRFJEDI Pool get 3D Integer field from grid field
+!> \author Ming Hu
+!> \date   11/19/2018
+!> \details
+!> This routine read field from grid type when field is a 3D integer field
+!
+!-----------------------------------------------------------------------
+   subroutine wrfjedi_pool_get_gridfield_3d_int(infield, key, field)!{{{
+!
+
+      implicit none
+
+      type (fieldlist), intent(in), pointer :: infield
+      character (len=*), intent(in) :: key
+      type (field3DInteger), pointer :: field
+
+      nullify(field%array)
+      if (associated(infield)) then
+
+         call field%fillFieldHead(infield)
+
+         if (infield % Type /= WRFJEDI_POOL_INTEGER) then
+            call pool_mesg('Error: Field '//trim(key)//' is not type integer.')
+         end if
+         if (infield % Ndim /= 3) then
+            call pool_mesg('Error: Field '//trim(key)//' is not a 3-d field.')
+         end if
+!         write(*,*) 'MIN/MAX value: ', minval(infield % ifield_3d),maxval(infield % ifield_3d)
+         field%array => infield % ifield_3d
+      else
+
+         call pool_mesg('Error: Field '//trim(key)//' not found in grid field.')
+
+      end if
+
+   end subroutine wrfjedi_pool_get_gridfield_3d_int!}}}
+!
+!-----------------------------------------------------------------------
+!  routine wrfjedi_pool_get_gridfield_4d_int
+!
+!> \brief WRFJEDI Pool get 4D Integer field from grid field
+!> \author Ming Hu
+!> \date   11/19/2018
+!> \details
+!> This routine read field from grid type when field is a 4D integer field
+!
+!-----------------------------------------------------------------------
+   subroutine wrfjedi_pool_get_gridfield_4d_int(infield, key, field)!{{{
+!
+
+      implicit none
+
+      type (fieldlist), intent(in), pointer :: infield
+      character (len=*), intent(in) :: key
+      type (field4DInteger), pointer :: field
+
+      nullify(field%array)
+      if (associated(infield)) then
+
+         call field%fillFieldHead(infield)
+
+         if (infield % Type /= WRFJEDI_POOL_INTEGER) then
+            call pool_mesg('Error: Field '//trim(key)//' is not type integer.')
+         end if
+         if (infield % Ndim /= 4) then
+            call pool_mesg('Error: Field '//trim(key)//' is not a 4-d field.')
+         end if
+!         write(*,*) 'MIN/MAX value: ', minval(infield % ifield_4d),maxval(infield % ifield_4d)
+         field%array => infield % ifield_4d
+      else
+
+         call pool_mesg('Error: Field '//trim(key)//' not found in grid field.')
+
+      end if
+
+   end subroutine wrfjedi_pool_get_gridfield_4d_int!}}}
+
+!
+!-----------------------------------------------------------------------
+!  routine wrfjedi_pool_get_gridfield_0d_real
+!
+!> \brief WRFJEDI Pool get 0D Real field from grid field
+!> \author Ming Hu
+!> \date   11/19/2018
+!> \details
+!> This routine read field from grid type when field is a 0D real field
+!
+!-----------------------------------------------------------------------
+   subroutine wrfjedi_pool_get_gridfield_0d_real(infield, key, field)!{{{
+!
+
+      implicit none
+
+      type (fieldlist), intent(in), pointer :: infield
+      character (len=*), intent(in) :: key
+      type (field0DReal), pointer :: field
+
+      nullify(field%array)
+      if (associated(infield)) then
+
+         call field%fillFieldHead(infield)
+!         call field%printFieldHead()
+
+         if (infield % Type /= WRFJEDI_POOL_REAL) then
+            call pool_mesg('Error: Field '//trim(key)//' is not type real.')
+         end if
+         if (infield % Ndim /= 0) then
+            call pool_mesg('Error: Field '//trim(key)//' is not a 0-d field.')
+         end if
+         field%array => infield % rfield_0d
+      else
+
+         call pool_mesg('Error: Field '//trim(key)//' not found in grid field.')
+
+      end if
+
+   end subroutine wrfjedi_pool_get_gridfield_0d_real!}}}
+!
+!-----------------------------------------------------------------------
+!  routine wrfjedi_pool_get_gridfield_1d_real
+!
+!> \brief WRFJEDI Pool get 1D Real field from grid field
+!> \author Ming Hu
+!> \date   11/19/2018
+!> \details
+!> This routine read field from grid type when field is a 1D real field
+!
+!-----------------------------------------------------------------------
+   subroutine wrfjedi_pool_get_gridfield_1d_real(infield, key, field)!{{{
+!
+
+      implicit none
+
+      type (fieldlist), intent(in), pointer :: infield
+      character (len=*), intent(in) :: key
+      type (field1DReal), pointer :: field
+
+      nullify(field%array)
+      if (associated(infield)) then
+
+         call field%fillFieldHead(infield)
+
+         if (infield % Type /= WRFJEDI_POOL_REAL) then
+            call pool_mesg('Error: Field '//trim(key)//' is not type real.')
+         end if
+         if (infield % Ndim /= 1) then
+            call pool_mesg('Error: Field '//trim(key)//' is not a 1-d field.')
+         end if
+!         write(*,*) 'MIN/MAX value: ', minval(infield % rfield_1d),maxval(infield % rfield_1d)
+         field%array => infield % rfield_1d
+      else
+
+         call pool_mesg('Error: Field '//trim(key)//' not found in grid field.')
+
+      end if
+
+   end subroutine wrfjedi_pool_get_gridfield_1d_real!}}}
+!
+!-----------------------------------------------------------------------
+!  routine wrfjedi_pool_get_gridfield_2d_real
+!
+!> \brief WRFJEDI Pool get 2D Real field from grid field
+!> \author Ming Hu
+!> \date   11/19/2018
+!> \details
+!> This routine read field from grid type when field is a 2D real field
+!
+!-----------------------------------------------------------------------
    subroutine wrfjedi_pool_get_gridfield_2d_real(infield, key, field)!{{{
 !
 
@@ -1734,92 +2028,179 @@ module wrfjedi_pool_routines
    end subroutine wrfjedi_pool_get_gridfield_2d_real!}}}
 !
 !
-!!-----------------------------------------------------------------------
-!!  routine wrfjedi_pool_add_field_0d_real
-!!
-!!> \brief WRFJEDI Pool 0D Real field add routine
-!!> \author Ming Hu
-!!> \date   03/27/2014
-!!> \details
-!!> This routine inserts field into inPool when field is a 0D real field
-!!
-!!-----------------------------------------------------------------------
-!   subroutine wrfjedi_pool_add_field_0d_real(inPool, key, field)!{{{
+!-----------------------------------------------------------------------
+!  routine wrfjedi_pool_get_gridfield_3d_real
 !
-!      implicit none
+!> \brief WRFJEDI Pool get 3D Real field from grid field
+!> \author Ming Hu
+!> \date   11/19/2018
+!> \details
+!> This routine read field from grid type when field is a 3D real field
 !
-!      type (wrfjedi_pool_type), intent(inout) :: inPool
-!      character (len=*), intent(in) :: key
-!      type (field0DReal), pointer :: field
+!-----------------------------------------------------------------------
+   subroutine wrfjedi_pool_get_gridfield_3d_real(infield, key, field)!{{{
 !
-!      type (wrfjedi_pool_member_type), pointer :: newmem
-!      integer :: threadNum
-!
-!      threadNum = wrfjedi_threading_get_thread_num()
-!
-!      if ( threadNum == 0 ) then
-!         allocate(newmem)
-!         newmem % key = trim(key)
-!         newmem % keyLen = len_trim(key)
-!         newmem % contentsType = WRFJEDI_POOL_FIELD
-!
-!         allocate(newmem % data)
-!         newmem % data % contentsType = WRFJEDI_POOL_REAL
-!         newmem % data % contentsDims = 0
-!         newmem % data % contentsTimeLevs = 1
-!         newmem % data % r0 => field
-!   
-!         if (.not. pool_add_member(inPool, key, newmem)) then
-!            deallocate(newmem % data)
-!            deallocate(newmem)
-!         end if
-!      end if
-!
-!   end subroutine wrfjedi_pool_add_field_0d_real!}}}
+
+      implicit none
+
+      type (fieldlist), intent(in), pointer :: infield
+      character (len=*), intent(in) :: key
+      type (field3DReal), pointer :: field
+
+      nullify(field%array)
+      if (associated(infield)) then
+
+         call field%fillFieldHead(infield)
+!         call field%printFieldHead()
+
+         if (infield % Type /= WRFJEDI_POOL_REAL) then
+            call pool_mesg('Error: Field '//trim(key)//' is not type real.')
+         end if
+         if (infield % Ndim /= 3) then
+            call pool_mesg('Error: Field '//trim(key)//' is not a 3-d field.')
+         end if
+!         write(*,*) 'MIN/MAX value: ', minval(infield % rfield_3d),maxval(infield % rfield_3d)
+         field%array => infield % rfield_3d
+      else
+
+         call pool_mesg('Error: Field '//trim(key)//' not found in grid field.')
+
+      end if
+
+   end subroutine wrfjedi_pool_get_gridfield_3d_real!}}}
 !
 !
-!!-----------------------------------------------------------------------
-!!  routine wrfjedi_pool_add_field_1d_real
-!!
-!!> \brief WRFJEDI Pool 1D Real field add routine
-!!> \author Ming Hu
-!!> \date   03/27/2014
-!!> \details
-!!> This routine inserts field into inPool when field is a 1D real field
-!!
-!!-----------------------------------------------------------------------
-!   subroutine wrfjedi_pool_add_field_1d_real(inPool, key, field)!{{{
+!-----------------------------------------------------------------------
+!  routine wrfjedi_pool_get_gridfield_4d_real
 !
-!      implicit none
+!> \brief WRFJEDI Pool get 4D Real field from grid field
+!> \author Ming Hu
+!> \date   11/19/2018
+!> \details
+!> This routine read field from grid type when field is a 4D real field
 !
-!      type (wrfjedi_pool_type), intent(inout) :: inPool
-!      character (len=*), intent(in) :: key
-!      type (field1DReal), pointer :: field
+!-----------------------------------------------------------------------
+   subroutine wrfjedi_pool_get_gridfield_4d_real(infield, key, field)!{{{
 !
-!      type (wrfjedi_pool_member_type), pointer :: newmem
-!      integer :: threadNum
+
+      implicit none
+
+      type (fieldlist), intent(in), pointer :: infield
+      character (len=*), intent(in) :: key
+      type (field4DReal), pointer :: field
+
+      nullify(field%array)
+      if (associated(infield)) then
+
+         call field%fillFieldHead(infield)
+
+         if (infield % Type /= WRFJEDI_POOL_REAL) then
+            call pool_mesg('Error: Field '//trim(key)//' is not type real.')
+         end if
+         if (infield % Ndim /= 4) then
+            call pool_mesg('Error: Field '//trim(key)//' is not a 4-d field.')
+         end if
+!         write(*,*) 'MIN/MAX value: ', minval(infield % rfield_4d),maxval(infield % rfield_4d)
+         field%array => infield % rfield_4d
+      else
+
+         call pool_mesg('Error: Field '//trim(key)//' not found in grid field.')
+
+      end if
+
+   end subroutine wrfjedi_pool_get_gridfield_4d_real!}}}
 !
-!      threadNum = wrfjedi_threading_get_thread_num()
+!-----------------------------------------------------------------------
+!  routine wrfjedi_pool_add_field_0d_real
 !
-!      if ( threadNum == 0 ) then
-!         allocate(newmem)
-!         newmem % key = trim(key)
-!         newmem % keyLen = len_trim(key)
-!         newmem % contentsType = WRFJEDI_POOL_FIELD
+!> \brief WRFJEDI Pool 0D Real field add routine
+!> \author Ming Hu
+!> \date   03/27/2014
+!> \details
+!> This routine inserts field into inPool when field is a 0D real field
 !
-!         allocate(newmem % data)
-!         newmem % data % contentsType = WRFJEDI_POOL_REAL
-!         newmem % data % contentsDims = 1
-!         newmem % data % contentsTimeLevs = 1
-!         newmem % data % r1 => field
-!   
-!         if (.not. pool_add_member(inPool, key, newmem)) then
-!            deallocate(newmem % data)
-!            deallocate(newmem)
-!         end if
-!      end if
+!-----------------------------------------------------------------------
+   subroutine wrfjedi_pool_add_field_0d_real(inPool, key, field)!{{{
+
+      implicit none
+
+      type (wrfjedi_pool_type), intent(inout) :: inPool
+      character (len=*), intent(in) :: key
+      type (field0DReal), pointer :: field
+
+      type (wrfjedi_pool_member_type), pointer :: newmem
+      integer :: threadNum
+
+      threadNum = wrfjedi_threading_get_thread_num()
+
+      if ( threadNum == 0 ) then
+         allocate(newmem)
+         newmem % key = trim(key)
+         newmem % keyLen = len_trim(key)
+         newmem % contentsType = WRFJEDI_POOL_FIELD
+
+         allocate(newmem % data)
+         call wrfjedi_nullify_fieldlist(newmem % data)
+         call field%sendFieldHead(newmem % data)
+!         call field%printFieldHead()
+         newmem % data % Type = WRFJEDI_POOL_REAL
+         newmem % data % Ndim = 0
+
+         newmem % data % rfield_0d => field % array
+   
+         if (.not. pool_add_member(inPool, key, newmem)) then
+            deallocate(newmem % data)
+            deallocate(newmem)
+         end if
+      end if
+
+   end subroutine wrfjedi_pool_add_field_0d_real!}}}
+
 !
-!   end subroutine wrfjedi_pool_add_field_1d_real!}}}
+!-----------------------------------------------------------------------
+!  routine wrfjedi_pool_add_field_1d_real
+!
+!> \brief WRFJEDI Pool 1D Real field add routine
+!> \author Ming Hu
+!> \date   11/19/2018
+!> \details
+!> This routine inserts field into inPool when field is a 1D real field
+!
+!-----------------------------------------------------------------------
+   subroutine wrfjedi_pool_add_field_1d_real(inPool, key, field)!{{{
+
+      implicit none
+
+      type (wrfjedi_pool_type), intent(inout) :: inPool
+      character (len=*), intent(in) :: key
+      type (field1DReal), pointer :: field
+
+      type (wrfjedi_pool_member_type), pointer :: newmem
+      integer :: threadNum
+
+      threadNum = wrfjedi_threading_get_thread_num()
+
+      if ( threadNum == 0 ) then
+         allocate(newmem)
+         newmem % key = trim(key)
+         newmem % keyLen = len_trim(key)
+         newmem % contentsType = WRFJEDI_POOL_FIELD
+
+         allocate(newmem % data)
+         call wrfjedi_nullify_fieldlist(newmem % data)
+         call field%sendFieldHead(newmem % data)
+         newmem % data % Type = WRFJEDI_POOL_REAL
+         newmem % data % Ndim = 1
+
+         newmem % data % rfield_1d => field % array
+    
+         if (.not. pool_add_member(inPool, key, newmem)) then
+            deallocate(newmem % data)
+            deallocate(newmem)
+         end if
+      end if
+
+   end subroutine wrfjedi_pool_add_field_1d_real!}}}
 !
 !
 !-----------------------------------------------------------------------
@@ -1827,7 +2208,7 @@ module wrfjedi_pool_routines
 !
 !> \brief WRFJEDI Pool 2D Real field add routine
 !> \author Ming Hu
-!> \date   03/27/2014
+!> \date   11/19/2018
 !> \details
 !> This routine inserts field into inPool when field is a 2D real field
 !
@@ -1854,6 +2235,7 @@ module wrfjedi_pool_routines
          newmem % contentsType = WRFJEDI_POOL_FIELD
 !
          allocate(newmem % data)
+         call wrfjedi_nullify_fieldlist(newmem % data)
          call field%sendFieldHead(newmem % data)
          newmem % data % Type = WRFJEDI_POOL_REAL
          newmem % data % Ndim = 2
@@ -1863,7 +2245,7 @@ module wrfjedi_pool_routines
 !                              minval(newmem % data % rfield_2d)
 !   
          if (.not. pool_add_member(inPool, key, newmem)) then
-            deallocate(newmem % data % rfield_2d)
+!            deallocate(newmem % data % rfield_2d)
             deallocate(newmem % data)
             deallocate(newmem)
          end if
@@ -1872,324 +2254,286 @@ module wrfjedi_pool_routines
    end subroutine wrfjedi_pool_add_field_2d_real!}}}
 !
 !
-!!-----------------------------------------------------------------------
-!!  routine wrfjedi_pool_add_field_3d_real
-!!
-!!> \brief WRFJEDI Pool 3D Real field add routine
-!!> \author Ming Hu
-!!> \date   03/27/2014
-!!> \details
-!!> This routine inserts field into inPool when field is a 3D real field
-!!
-!!-----------------------------------------------------------------------
-!   subroutine wrfjedi_pool_add_field_3d_real(inPool, key, field)!{{{
+!-----------------------------------------------------------------------
+!  routine wrfjedi_pool_add_field_3d_real
 !
-!      implicit none
+!> \brief WRFJEDI Pool 3D Real field add routine
+!> \author Ming Hu
+!> \date   11/19/2018
+!> \details
+!> This routine inserts field into inPool when field is a 3D real field
 !
-!      type (wrfjedi_pool_type), intent(inout) :: inPool
-!      character (len=*), intent(in) :: key
-!      type (field3DReal), pointer :: field
-!
-!      type (wrfjedi_pool_member_type), pointer :: newmem
-!      integer :: threadNum
-!
-!      threadNum = wrfjedi_threading_get_thread_num()
-!
-!      if ( threadNum == 0 ) then
-!         allocate(newmem)
-!         newmem % key = trim(key)
-!         newmem % keyLen = len_trim(key)
-!         newmem % contentsType = WRFJEDI_POOL_FIELD
-!
-!         allocate(newmem % data)
-!         newmem % data % contentsType = WRFJEDI_POOL_REAL
-!         newmem % data % contentsDims = 3
-!         newmem % data % contentsTimeLevs = 1
-!         newmem % data % r3 => field
-!   
-!         if (.not. pool_add_member(inPool, key, newmem)) then
-!            deallocate(newmem % data)
-!            deallocate(newmem)
-!         end if
-!      end if
-!
-!   end subroutine wrfjedi_pool_add_field_3d_real!}}}
-!
-!
-!!-----------------------------------------------------------------------
-!!  routine wrfjedi_pool_add_field_4d_real
-!!
-!!> \brief WRFJEDI Pool 4D Real field add routine
-!!> \author Ming Hu
-!!> \date   03/27/2014
-!!> \details
-!!> This routine inserts field into inPool when field is a 4D real field
-!!
-!!-----------------------------------------------------------------------
-!   subroutine wrfjedi_pool_add_field_4d_real(inPool, key, field)!{{{
-!
-!      implicit none
-!
-!      type (wrfjedi_pool_type), intent(inout) :: inPool
-!      character (len=*), intent(in) :: key
-!      type (field4DReal), pointer :: field
-!
-!      type (wrfjedi_pool_member_type), pointer :: newmem
-!      integer :: threadNum
-!
-!      threadNum = wrfjedi_threading_get_thread_num()
-!
-!      if ( threadNum == 0 ) then
-!         allocate(newmem)
-!         newmem % key = trim(key)
-!         newmem % keyLen = len_trim(key)
-!         newmem % contentsType = WRFJEDI_POOL_FIELD
-!
-!         allocate(newmem % data)
-!         newmem % data % contentsType = WRFJEDI_POOL_REAL
-!         newmem % data % contentsDims = 4
-!         newmem % data % contentsTimeLevs = 1
-!         newmem % data % r4 => field
-!   
-!         if (.not. pool_add_member(inPool, key, newmem)) then
-!            deallocate(newmem % data)
-!            deallocate(newmem)
-!         end if
-!      end if
-!
-!   end subroutine wrfjedi_pool_add_field_4d_real!}}}
+!-----------------------------------------------------------------------
+   subroutine wrfjedi_pool_add_field_3d_real(inPool, key, field)!{{{
+
+      implicit none
+
+      type (wrfjedi_pool_type), intent(inout) :: inPool
+      character (len=*), intent(in) :: key
+      type (field3DReal), pointer :: field
+
+      type (wrfjedi_pool_member_type), pointer :: newmem
+      integer :: threadNum
+
+      threadNum = wrfjedi_threading_get_thread_num()
+
+      if ( threadNum == 0 ) then
+         allocate(newmem)
+         newmem % key = trim(key)
+         newmem % keyLen = len_trim(key)
+         newmem % contentsType = WRFJEDI_POOL_FIELD
+
+         allocate(newmem % data)
+         call wrfjedi_nullify_fieldlist(newmem % data)
+         call field%sendFieldHead(newmem % data)
+         newmem % data % Type = WRFJEDI_POOL_REAL
+         newmem % data % Ndim = 3
+         newmem % data % rfield_3d => field % array
+   
+         if (.not. pool_add_member(inPool, key, newmem)) then
+            deallocate(newmem % data)
+            deallocate(newmem)
+         end if
+      end if
+
+   end subroutine wrfjedi_pool_add_field_3d_real!}}}
 !
 !
-!!-----------------------------------------------------------------------
-!!  routine wrfjedi_pool_add_field_5d_real
-!!
-!!> \brief WRFJEDI Pool 5D Real field add routine
-!!> \author Ming Hu
-!!> \date   03/27/2014
-!!> \details
-!!> This routine inserts field into inPool when field is a 5D real field
-!!
-!!-----------------------------------------------------------------------
-!   subroutine wrfjedi_pool_add_field_5d_real(inPool, key, field)!{{{
+!-----------------------------------------------------------------------
+!  routine wrfjedi_pool_add_field_4d_real
 !
-!      implicit none
+!> \brief WRFJEDI Pool 4D Real field add routine
+!> \author Ming Hu
+!> \date   11/19/2018
+!> \details
+!> This routine inserts field into inPool when field is a 4D real field
 !
-!      type (wrfjedi_pool_type), intent(inout) :: inPool
-!      character (len=*), intent(in) :: key
-!      type (field5DReal), pointer :: field
+!-----------------------------------------------------------------------
+   subroutine wrfjedi_pool_add_field_4d_real(inPool, key, field)!{{{
+
+      implicit none
+
+      type (wrfjedi_pool_type), intent(inout) :: inPool
+      character (len=*), intent(in) :: key
+      type (field4DReal), pointer :: field
+
+      type (wrfjedi_pool_member_type), pointer :: newmem
+      integer :: threadNum
+
+      threadNum = wrfjedi_threading_get_thread_num()
+
+      if ( threadNum == 0 ) then
+         allocate(newmem)
+         newmem % key = trim(key)
+         newmem % keyLen = len_trim(key)
+         newmem % contentsType = WRFJEDI_POOL_FIELD
+
+         allocate(newmem % data)
+         call wrfjedi_nullify_fieldlist(newmem % data)
+         call field%sendFieldHead(newmem % data)
+         newmem % data % Type = WRFJEDI_POOL_REAL
+         newmem % data % Ndim = 4
+         newmem % data % rfield_4d => field % array
+   
+         if (.not. pool_add_member(inPool, key, newmem)) then
+            deallocate(newmem % data)
+            deallocate(newmem)
+         end if
+      end if
+
+   end subroutine wrfjedi_pool_add_field_4d_real!}}}
+
 !
-!      type (wrfjedi_pool_member_type), pointer :: newmem
-!      integer :: threadNum
+!-----------------------------------------------------------------------
+!  routine wrfjedi_pool_add_field_0d_int
 !
-!      threadNum = wrfjedi_threading_get_thread_num()
+!> \brief WRFJEDI Pool 1D Integer field add routine
+!> \author Ming Hu
+!> \date   11/19/2018
+!> \details
+!> This routine inserts field into inPool when field is a 0D integer field
 !
-!      if ( threadNum == 0 ) then
-!         allocate(newmem)
-!         newmem % key = trim(key)
-!         newmem % keyLen = len_trim(key)
-!         newmem % contentsType = WRFJEDI_POOL_FIELD
-!
-!         allocate(newmem % data)
-!         newmem % data % contentsType = WRFJEDI_POOL_REAL
-!         newmem % data % contentsDims = 5
-!         newmem % data % contentsTimeLevs = 1
-!         newmem % data % r5 => field
-!   
-!         if (.not. pool_add_member(inPool, key, newmem)) then
-!            deallocate(newmem % data)
-!            deallocate(newmem)
-!         end if
-!      end if
-!
-!   end subroutine wrfjedi_pool_add_field_5d_real!}}}
-!
-!
-!!-----------------------------------------------------------------------
-!!  routine wrfjedi_pool_add_field_0d_int
-!!
-!!> \brief WRFJEDI Pool 0D Integer field add routine
-!!> \author Ming Hu
-!!> \date   03/27/2014
-!!> \details
-!!> This routine inserts field into inPool when field is a 0D integer field
-!!
-!!-----------------------------------------------------------------------
-!   subroutine wrfjedi_pool_add_field_0d_int(inPool, key, field)!{{{
-!
-!      implicit none
-!
-!      type (wrfjedi_pool_type), intent(inout) :: inPool
-!      character (len=*), intent(in) :: key
-!      type (field0DInteger), pointer :: field
-!
-!      type (wrfjedi_pool_member_type), pointer :: newmem
-!      integer :: threadNum
-!
-!      threadNum = wrfjedi_threading_get_thread_num()
-!
-!      if ( threadNum == 0 ) then
-!         allocate(newmem)
-!         newmem % key = trim(key)
-!         newmem % keyLen = len_trim(key)
-!         newmem % contentsType = WRFJEDI_POOL_FIELD
-!
-!         allocate(newmem % data)
-!         newmem % data % contentsType = WRFJEDI_POOL_INTEGER
-!         newmem % data % contentsDims = 0
-!         newmem % data % contentsTimeLevs = 1
-!         newmem % data % i0 => field
-!   
-!         if (.not. pool_add_member(inPool, key, newmem)) then
-!            deallocate(newmem % data)
-!            deallocate(newmem)
-!         end if
-!      end if
-!
-!   end subroutine wrfjedi_pool_add_field_0d_int!}}}
-!
-!
-!!-----------------------------------------------------------------------
-!!  routine wrfjedi_pool_add_field_1d_int
-!!
-!!> \brief WRFJEDI Pool 1D Integer field add routine
-!!> \author Ming Hu
-!!> \date   03/27/2014
-!!> \details
-!!> This routine inserts field into inPool when field is a 1D integer field
-!!
-!!-----------------------------------------------------------------------
-!   subroutine wrfjedi_pool_add_field_1d_int(inPool, key, field)!{{{
-!
-!      implicit none
-!
-!      type (wrfjedi_pool_type), intent(inout) :: inPool
-!      character (len=*), intent(in) :: key
-!      type (field1DInteger), pointer :: field
-!
-!      type (wrfjedi_pool_member_type), pointer :: newmem
-!      integer :: threadNum
-!
-!      threadNum = wrfjedi_threading_get_thread_num()
-!
-!      if ( threadNum == 0 ) then
-!         allocate(newmem)
-!         newmem % key = trim(key)
-!         newmem % keyLen = len_trim(key)
-!         newmem % contentsType = WRFJEDI_POOL_FIELD
-!
-!         allocate(newmem % data)
-!         newmem % data % contentsType = WRFJEDI_POOL_INTEGER
-!         newmem % data % contentsDims = 1
-!         newmem % data % contentsTimeLevs = 1
-!         newmem % data % i1 => field
-!   
-!         if (.not. pool_add_member(inPool, key, newmem)) then
-!            deallocate(newmem % data)
-!            deallocate(newmem)
-!         end if
-!      end if
-!
-!   end subroutine wrfjedi_pool_add_field_1d_int!}}}
+!-----------------------------------------------------------------------
+   subroutine wrfjedi_pool_add_field_0d_int(inPool, key, field)!{{{
+
+      implicit none
+
+      type (wrfjedi_pool_type), intent(inout) :: inPool
+      character (len=*), intent(in) :: key
+      type (field0DInteger), pointer :: field
+
+      type (wrfjedi_pool_member_type), pointer :: newmem
+      integer :: threadNum
+
+      threadNum = wrfjedi_threading_get_thread_num()
+
+      if ( threadNum == 0 ) then
+         allocate(newmem)
+         newmem % key = trim(key)
+         newmem % keyLen = len_trim(key)
+         newmem % contentsType = WRFJEDI_POOL_FIELD
+
+         allocate(newmem % data)
+         call wrfjedi_nullify_fieldlist(newmem % data)
+         call field%sendFieldHead(newmem % data)
+         newmem % data % Type = WRFJEDI_POOL_INTEGER
+         newmem % data % Ndim = 0
+         newmem % data % ifield_0d => field % array
+
+         if (.not. pool_add_member(inPool, key, newmem)) then
+            deallocate(newmem % data)
+            deallocate(newmem)
+         end if
+      end if
+
+   end subroutine wrfjedi_pool_add_field_0d_int!}}}
 !
 !
-!!-----------------------------------------------------------------------
-!!  routine wrfjedi_pool_add_field_2d_int
-!!
-!!> \brief WRFJEDI Pool 2D Integer field add routine
-!!> \author Ming Hu
-!!> \date   03/27/2014
-!!> \details
-!!> This routine inserts field into inPool when field is a 2D integer field
-!!
-!!-----------------------------------------------------------------------
-!   subroutine wrfjedi_pool_add_field_2d_int(inPool, key, field)!{{{
+!-----------------------------------------------------------------------
+!  routine wrfjedi_pool_add_field_1d_int
 !
-!      implicit none
+!> \brief WRFJEDI Pool 1D Integer field add routine
+!> \author Ming Hu
+!> \date   11/19/2018
+!> \details
+!> This routine inserts field into inPool when field is a 1D integer field
 !
-!      type (wrfjedi_pool_type), intent(inout) :: inPool
-!      character (len=*), intent(in) :: key
-!      type (field2DInteger), pointer :: field
-!
-!      type (wrfjedi_pool_member_type), pointer :: newmem
-!      integer :: threadNum
-!
-!      threadNum = wrfjedi_threading_get_thread_num()
-!
-!      if ( threadNum == 0 ) then
-!         allocate(newmem)
-!         newmem % key = trim(key)
-!         newmem % keyLen = len_trim(key)
-!         newmem % contentsType = WRFJEDI_POOL_FIELD
-!
-!         allocate(newmem % data)
-!         newmem % data % contentsType = WRFJEDI_POOL_INTEGER
-!         newmem % data % contentsDims = 2
-!         newmem % data % contentsTimeLevs = 1
-!         newmem % data % i2 => field
-!   
-!         if (.not. pool_add_member(inPool, key, newmem)) then
-!            deallocate(newmem % data)
-!            deallocate(newmem)
-!         end if
-!      end if
-!
-!   end subroutine wrfjedi_pool_add_field_2d_int!}}}
-!
-!
-!!-----------------------------------------------------------------------
-!!  routine wrfjedi_pool_add_field_3d_int
-!!
-!!> \brief WRFJEDI Pool 3D Integer field add routine
-!!> \author Ming Hu
-!!> \date   03/27/2014
-!!> \details
-!!> This routine inserts field into inPool when field is a 3D integer field
-!!
-!!-----------------------------------------------------------------------
-!   subroutine wrfjedi_pool_add_field_3d_int(inPool, key, field)!{{{
-!
-!      implicit none
-!
-!      type (wrfjedi_pool_type), intent(inout) :: inPool
-!      character (len=*), intent(in) :: key
-!      type (field3DInteger), pointer :: field
-!
-!      type (wrfjedi_pool_member_type), pointer :: newmem
-!      integer :: threadNum
-!
-!      threadNum = wrfjedi_threading_get_thread_num()
-!
-!      if ( threadNum == 0 ) then
-!         allocate(newmem)
-!         newmem % key = trim(key)
-!         newmem % keyLen = len_trim(key)
-!         newmem % contentsType = WRFJEDI_POOL_FIELD
-!
-!         allocate(newmem % data)
-!         newmem % data % contentsType = WRFJEDI_POOL_INTEGER
-!         newmem % data % contentsDims = 3
-!         newmem % data % contentsTimeLevs = 1
-!         newmem % data % i3 => field
-!   
-!         if (.not. pool_add_member(inPool, key, newmem)) then
-!            deallocate(newmem % data)
-!            deallocate(newmem)
-!         end if
-!      end if
-!
-!   end subroutine wrfjedi_pool_add_field_3d_int!}}}
+!-----------------------------------------------------------------------
+   subroutine wrfjedi_pool_add_field_1d_int(inPool, key, field)!{{{
+
+      implicit none
+
+      type (wrfjedi_pool_type), intent(inout) :: inPool
+      character (len=*), intent(in) :: key
+      type (field1DInteger), pointer :: field
+
+      type (wrfjedi_pool_member_type), pointer :: newmem
+      integer :: threadNum
+
+      threadNum = wrfjedi_threading_get_thread_num()
+
+      if ( threadNum == 0 ) then
+         allocate(newmem)
+         newmem % key = trim(key)
+         newmem % keyLen = len_trim(key)
+         newmem % contentsType = WRFJEDI_POOL_FIELD
+
+         allocate(newmem % data)
+         call wrfjedi_nullify_fieldlist(newmem % data)
+         call field%sendFieldHead(newmem % data)
+         newmem % data % Type = WRFJEDI_POOL_INTEGER
+         newmem % data % Ndim = 1
+         newmem % data % ifield_1d => field % array
+   
+         if (.not. pool_add_member(inPool, key, newmem)) then
+            deallocate(newmem % data)
+            deallocate(newmem)
+         end if
+      end if
+
+   end subroutine wrfjedi_pool_add_field_1d_int!}}}
 !
 !
-!!-----------------------------------------------------------------------
-!!  routine wrfjedi_pool_add_field_0d_char
-!!
-!!> \brief WRFJEDI Pool 0D Character field add routine
-!!> \author Ming Hu
-!!> \date   03/27/2014
-!!> \details
-!!> This routine inserts field into inPool when field is a 0D character field
-!!
-!!-----------------------------------------------------------------------
+!-----------------------------------------------------------------------
+!  routine wrfjedi_pool_add_field_2d_int
+!
+!> \brief WRFJEDI Pool 2D Integer field add routine
+!> \author Ming Hu
+!> \date   11/19/2018
+!> \details
+!> This routine inserts field into inPool when field is a 2D integer field
+!
+!-----------------------------------------------------------------------
+   subroutine wrfjedi_pool_add_field_2d_int(inPool, key, field)!{{{
+
+      implicit none
+
+      type (wrfjedi_pool_type), intent(inout) :: inPool
+      character (len=*), intent(in) :: key
+      type (field2DInteger), pointer :: field
+
+      type (wrfjedi_pool_member_type), pointer :: newmem
+      integer :: threadNum
+
+      threadNum = wrfjedi_threading_get_thread_num()
+
+      if ( threadNum == 0 ) then
+         allocate(newmem)
+         newmem % key = trim(key)
+         newmem % keyLen = len_trim(key)
+         newmem % contentsType = WRFJEDI_POOL_FIELD
+
+         allocate(newmem % data)
+         call wrfjedi_nullify_fieldlist(newmem % data)
+         call field%sendFieldHead(newmem % data)
+         newmem % data % Type = WRFJEDI_POOL_INTEGER
+         newmem % data % Ndim = 2
+         newmem % data % ifield_2d => field % array
+   
+         if (.not. pool_add_member(inPool, key, newmem)) then
+            deallocate(newmem % data)
+            deallocate(newmem)
+         end if
+      end if
+
+   end subroutine wrfjedi_pool_add_field_2d_int!}}}
+!
+!
+!-----------------------------------------------------------------------
+!  routine wrfjedi_pool_add_field_3d_int
+!
+!> \brief WRFJEDI Pool 3D Integer field add routine
+!> \author Ming Hu
+!> \date   11/19/2018
+!> \details
+!> This routine inserts field into inPool when field is a 3D integer field
+!
+!-----------------------------------------------------------------------
+   subroutine wrfjedi_pool_add_field_3d_int(inPool, key, field)!{{{
+
+      implicit none
+
+      type (wrfjedi_pool_type), intent(inout) :: inPool
+      character (len=*), intent(in) :: key
+      type (field3DInteger), pointer :: field
+
+      type (wrfjedi_pool_member_type), pointer :: newmem
+      integer :: threadNum
+
+      threadNum = wrfjedi_threading_get_thread_num()
+
+      if ( threadNum == 0 ) then
+         allocate(newmem)
+         newmem % key = trim(key)
+         newmem % keyLen = len_trim(key)
+         newmem % contentsType = WRFJEDI_POOL_FIELD
+
+         allocate(newmem % data)
+         call wrfjedi_nullify_fieldlist(newmem % data)
+         call field%sendFieldHead(newmem % data)
+         newmem % data % Type = WRFJEDI_POOL_INTEGER
+         newmem % data % Ndim = 3
+         newmem % data % ifield_3d => field % array
+   
+         if (.not. pool_add_member(inPool, key, newmem)) then
+            deallocate(newmem % data)
+            deallocate(newmem)
+         end if
+      end if
+
+   end subroutine wrfjedi_pool_add_field_3d_int!}}}
+!
+!
+!-----------------------------------------------------------------------
+!  routine wrfjedi_pool_add_field_0d_char
+!
+!> \brief WRFJEDI Pool 0D Character field add routine
+!> \author Ming Hu
+!> \date   11/19/2018
+!> \details
+!> This routine inserts field into inPool when field is a 0D character field
+!
+!-----------------------------------------------------------------------
 !   subroutine wrfjedi_pool_add_field_0d_char(inPool, key, field)!{{{
 !
 !      implicit none
@@ -3068,128 +3412,109 @@ module wrfjedi_pool_routines
 !   end subroutine wrfjedi_pool_get_field_info!}}}
 !
 !
-!!-----------------------------------------------------------------------
-!!  subroutine wrfjedi_pool_get_field_0d_real
-!!
-!!> \brief WRFJEDI Pool 0D Real field get subroutine
-!!> \author Ming Hu
-!!> \date   03/27/2014
-!!> \details
-!!> This subroutine returns a pointer to the field associated with key in inPool.
-!!
-!!-----------------------------------------------------------------------
-!   subroutine wrfjedi_pool_get_field_0d_real(inPool, key, field, timeLevel)!{{{
+!-----------------------------------------------------------------------
+!  subroutine wrfjedi_pool_get_field_0d_real
 !
-!      implicit none
+!> \brief WRFJEDI Pool 0D Real field get subroutine
+!> \author Ming Hu
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns a pointer to the field associated with key in inPool.
 !
-!      type (wrfjedi_pool_type), intent(in) :: inPool
-!      character (len=*), intent(in) :: key
-!      type (field0DReal), pointer :: field
-!      integer, intent(in), optional :: timeLevel
-!
-!      type (fieldlist), pointer :: mem
-!      integer :: local_timeLevel
-!
-!
-!      if (present(timeLevel)) then
-!         local_timeLevel = timeLevel
-!      else
-!         local_timeLevel = 1
-!      end if
-!
-!      mem => pool_get_member(inPool, key, WRFJEDI_POOL_FIELD)
-!
-!      nullify(field)
-!      if (associated(mem)) then
-!
-!         if (mem % contentsType /= WRFJEDI_POOL_REAL) then
-!            call pool_mesg('Error: Field '//trim(key)//' is not type real.')
-!         end if
-!         if (mem % contentsDims /= 0) then
-!            call pool_mesg('Error: Field '//trim(key)//' is not a 0-d field.')
-!         end if
-!         if ((mem % contentsTimeLevs > 1) .and. (.not. present(timeLevel))) then
-!            call pool_mesg('Error: Field '//trim(key)//' has more than one time level, but no timeLevel argument given.')
-!         end if
-!         if (mem % contentsTimeLevs < local_timeLevel) then
-!            call pool_mesg('Error: Field '//trim(key)//' has too few time levels.')
-!         end if
-!         
-!         if (mem % contentsTimeLevs == 1) then
-!            field => mem % r0
-!         else
-!            field => mem % r0a(local_timeLevel)
-!         end if
-!
-!      else
-!
-!         call pool_mesg('Error: Field '//trim(key)//' not found in pool.')
-!
-!      end if
-!
-!   end subroutine wrfjedi_pool_get_field_0d_real!}}}
+!-----------------------------------------------------------------------
+   subroutine wrfjedi_pool_get_field_0d_real(inPool, key, field, timeLevel)!{{{
+
+      implicit none
+
+      type (wrfjedi_pool_type), intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      type (field0DReal), pointer :: field
+      integer, intent(in), optional :: timeLevel
+
+      type (fieldlist), pointer :: mem
+      integer :: local_timeLevel
+
+
+      if (present(timeLevel)) then
+         local_timeLevel = timeLevel
+      else
+         local_timeLevel = 1
+      end if
+
+      mem => pool_get_member(inPool, key, WRFJEDI_POOL_FIELD)
+
+      nullify(field%array)
+      if (associated(mem)) then
+
+         if (mem % Type /= WRFJEDI_POOL_REAL) then
+            call pool_mesg('Error: Field '//trim(key)//' is not type real.')
+         end if
+         if (mem % Ndim /= 0) then
+            call pool_mesg('Error: Field '//trim(key)//' is not a 0-d field.')
+         end if
+
+         call field%fillFieldHead(mem)
+         field%array => mem % rfield_0d
+      else
+
+         call pool_mesg('Error: Field '//trim(key)//' not found in pool.')
+
+      end if
+
+   end subroutine wrfjedi_pool_get_field_0d_real!}}}
 !
 !
-!!-----------------------------------------------------------------------
-!!  subroutine wrfjedi_pool_get_field_1d_real
-!!
-!!> \brief WRFJEDI Pool 1D Real field get subroutine
-!!> \author Ming Hu
-!!> \date   03/27/2014
-!!> \details
-!!> This subroutine returns a pointer to the field associated with key in inPool.
-!!
-!!-----------------------------------------------------------------------
-!   subroutine wrfjedi_pool_get_field_1d_real(inPool, key, field, timeLevel)!{{{
+!-----------------------------------------------------------------------
+!  subroutine wrfjedi_pool_get_field_1d_real
 !
-!      implicit none
+!> \brief WRFJEDI Pool 1D Real field get subroutine
+!> \author Ming Hu
+!> \date   11/19/2014
+!> \details
+!> This subroutine returns a pointer to the field associated with key in inPool.
 !
-!      type (wrfjedi_pool_type), intent(in) :: inPool
-!      character (len=*), intent(in) :: key
-!      type (field1DReal), pointer :: field
-!      integer, intent(in), optional :: timeLevel
-!
-!      type (fieldlist), pointer :: mem
-!      integer :: local_timeLevel
-!
-!
-!      if (present(timeLevel)) then
-!         local_timeLevel = timeLevel
-!      else
-!         local_timeLevel = 1
-!      end if
-!
-!      mem => pool_get_member(inPool, key, WRFJEDI_POOL_FIELD)
-!
-!      nullify(field)
-!      if (associated(mem)) then
-!
-!         if (mem % contentsType /= WRFJEDI_POOL_REAL) then
-!            call pool_mesg('Error: Field '//trim(key)//' is not type real.')
-!         end if
-!         if (mem % contentsDims /= 1) then
-!            call pool_mesg('Error: Field '//trim(key)//' is not a 1-d field.')
-!         end if
-!         if ((mem % contentsTimeLevs > 1) .and. (.not. present(timeLevel))) then
-!            call pool_mesg('Error: Field '//trim(key)//' has more than one time level, but no timeLevel argument given.')
-!         end if
-!         if (mem % contentsTimeLevs < local_timeLevel) then
-!            call pool_mesg('Error: Field '//trim(key)//' has too few time levels.')
-!         end if
-!         
-!         if (mem % contentsTimeLevs == 1) then
-!            field => mem % r1
-!         else
-!            field => mem % r1a(local_timeLevel)
-!         end if
-!
-!      else
-!
-!         call pool_mesg('Error: Field '//trim(key)//' not found in pool.')
-!
-!      end if
-!
-!   end subroutine wrfjedi_pool_get_field_1d_real!}}}
+!-----------------------------------------------------------------------
+   subroutine wrfjedi_pool_get_field_1d_real(inPool, key, field, timeLevel)!{{{
+
+      implicit none
+
+      type (wrfjedi_pool_type), intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      type (field1DReal), pointer :: field
+      integer, intent(in), optional :: timeLevel
+
+      type (fieldlist), pointer :: mem
+      integer :: local_timeLevel
+
+
+      if (present(timeLevel)) then
+         local_timeLevel = timeLevel
+      else
+         local_timeLevel = 1
+      end if
+
+      mem => pool_get_member(inPool, key, WRFJEDI_POOL_FIELD)
+
+      nullify(field%array)
+      if (associated(mem)) then
+
+         if (mem % Type /= WRFJEDI_POOL_REAL) then
+            call pool_mesg('Error: Field '//trim(key)//' is not type real.')
+         end if
+         if (mem % Ndim /= 1) then
+            call pool_mesg('Error: Field '//trim(key)//' is not a 1-d field.')
+         end if
+
+         call field%fillFieldHead(mem)
+         field%array => mem % rfield_1d
+
+      else
+
+         call pool_mesg('Error: Field '//trim(key)//' not found in pool.')
+
+      end if
+
+   end subroutine wrfjedi_pool_get_field_1d_real!}}}
 !
 !
 !-----------------------------------------------------------------------
@@ -3197,7 +3522,7 @@ module wrfjedi_pool_routines
 !
 !> \brief WRFJEDI Pool 2D Real field get subroutine
 !> \author Ming Hu
-!> \date   03/27/2014
+!> \date   11/19/2018
 !> \details
 !> This subroutine returns a pointer to the field associated with key in inPool.
 !
@@ -3245,438 +3570,323 @@ module wrfjedi_pool_routines
    end subroutine wrfjedi_pool_get_field_2d_real!}}}
 !
 !
-!!-----------------------------------------------------------------------
-!!  subroutine wrfjedi_pool_get_field_3d_real
-!!
-!!> \brief WRFJEDI Pool 3D Real field get subroutine
-!!> \author Ming Hu
-!!> \date   03/27/2014
-!!> \details
-!!> This subroutine returns a pointer to the field associated with key in inPool.
-!!
-!!-----------------------------------------------------------------------
-!   subroutine wrfjedi_pool_get_field_3d_real(inPool, key, field, timeLevel)!{{{
-!
-!      implicit none
-!
-!      type (wrfjedi_pool_type), intent(in) :: inPool
-!      character (len=*), intent(in) :: key
-!      type (field3DReal), pointer :: field
-!      integer, intent(in), optional :: timeLevel
-!
-!      type (fieldlist), pointer :: mem
-!      integer :: local_timeLevel
-!
-!
-!      if (present(timeLevel)) then
-!         local_timeLevel = timeLevel
-!      else
-!         local_timeLevel = 1
-!      end if
-!
-!      mem => pool_get_member(inPool, key, WRFJEDI_POOL_FIELD)
-!
-!      nullify(field)
-!      if (associated(mem)) then
-!
-!         if (mem % contentsType /= WRFJEDI_POOL_REAL) then
-!            call pool_mesg('Error: Field '//trim(key)//' is not type real.')
-!         end if
-!         if (mem % contentsDims /= 3) then
-!            call pool_mesg('Error: Field '//trim(key)//' is not a 3-d field.')
-!         end if
-!         if ((mem % contentsTimeLevs > 1) .and. (.not. present(timeLevel))) then
-!            call pool_mesg('Error: Field '//trim(key)//' has more than one time level, but no timeLevel argument given.')
-!         end if
-!         if (mem % contentsTimeLevs < local_timeLevel) then
-!            call pool_mesg('Error: Field '//trim(key)//' has too few time levels.')
-!         end if
-!         
-!         if (mem % contentsTimeLevs == 1) then
-!            field => mem % r3
-!         else
-!            field => mem % r3a(local_timeLevel)
-!         end if
-!
-!      else
-!
-!         call pool_mesg('Error: Field '//trim(key)//' not found in pool.')
-!
-!      end if
-!
-!   end subroutine wrfjedi_pool_get_field_3d_real!}}}
-!
-!
-!!-----------------------------------------------------------------------
-!!  subroutine wrfjedi_pool_get_field_4d_real
-!!
-!!> \brief WRFJEDI Pool 4D Real field get subroutine
-!!> \author Ming Hu
-!!> \date   03/27/2014
-!!> \details
-!!> This subroutine returns a pointer to the field associated with key in inPool.
-!!
-!!-----------------------------------------------------------------------
-!   subroutine wrfjedi_pool_get_field_4d_real(inPool, key, field, timeLevel)!{{{
-!
-!      implicit none
-!
-!      type (wrfjedi_pool_type), intent(in) :: inPool
-!      character (len=*), intent(in) :: key
-!      type (field4DReal), pointer :: field
-!      integer, intent(in), optional :: timeLevel
-!
-!      type (fieldlist), pointer :: mem
-!      integer :: local_timeLevel
-!
-!
-!      if (present(timeLevel)) then
-!         local_timeLevel = timeLevel
-!      else
-!         local_timeLevel = 1
-!      end if
-!
-!      mem => pool_get_member(inPool, key, WRFJEDI_POOL_FIELD)
-!
-!      nullify(field)
-!      if (associated(mem)) then
-!
-!         if (mem % contentsType /= WRFJEDI_POOL_REAL) then
-!            call pool_mesg('Error: Field '//trim(key)//' is not type real.')
-!         end if
-!         if (mem % contentsDims /= 4) then
-!            call pool_mesg('Error: Field '//trim(key)//' is not a 4-d field.')
-!         end if
-!         if ((mem % contentsTimeLevs > 1) .and. (.not. present(timeLevel))) then
-!            call pool_mesg('Error: Field '//trim(key)//' has more than one time level, but no timeLevel argument given.')
-!         end if
-!         if (mem % contentsTimeLevs < local_timeLevel) then
-!            call pool_mesg('Error: Field '//trim(key)//' has too few time levels.')
-!         end if
-!         
-!         if (mem % contentsTimeLevs == 1) then
-!            field => mem % r4
-!         else
-!            field => mem % r4a(local_timeLevel)
-!         end if
-!
-!      else
-!
-!         call pool_mesg('Error: Field '//trim(key)//' not found in pool.')
-!
-!      end if
-!
-!   end subroutine wrfjedi_pool_get_field_4d_real!}}}
-!
-!
-!!-----------------------------------------------------------------------
-!!  subroutine wrfjedi_pool_get_field_5d_real
-!!
-!!> \brief WRFJEDI Pool 5D Real field get subroutine
-!!> \author Ming Hu
-!!> \date   03/27/2014
-!!> \details
-!!> This subroutine returns a pointer to the field associated with key in inPool.
-!!
-!!-----------------------------------------------------------------------
-!   subroutine wrfjedi_pool_get_field_5d_real(inPool, key, field, timeLevel)!{{{
-!
-!      implicit none
-!
-!      type (wrfjedi_pool_type), intent(in) :: inPool
-!      character (len=*), intent(in) :: key
-!      type (field5DReal), pointer :: field
-!      integer, intent(in), optional :: timeLevel
-!
-!      type (fieldlist), pointer :: mem
-!      integer :: local_timeLevel
-!
-!
-!      if (present(timeLevel)) then
-!         local_timeLevel = timeLevel
-!      else
-!         local_timeLevel = 1
-!      end if
-!
-!      mem => pool_get_member(inPool, key, WRFJEDI_POOL_FIELD)
-!
-!      nullify(field)
-!      if (associated(mem)) then
-!
-!         if (mem % contentsType /= WRFJEDI_POOL_REAL) then
-!            call pool_mesg('Error: Field '//trim(key)//' is not type real.')
-!         end if
-!         if (mem % contentsDims /= 5) then
-!            call pool_mesg('Error: Field '//trim(key)//' is not a 5-d field.')
-!         end if
-!         if ((mem % contentsTimeLevs > 1) .and. (.not. present(timeLevel))) then
-!            call pool_mesg('Error: Field '//trim(key)//' has more than one time level, but no timeLevel argument given.')
-!         end if
-!         if (mem % contentsTimeLevs < local_timeLevel) then
-!            call pool_mesg('Error: Field '//trim(key)//' has too few time levels.')
-!         end if
-!         
-!         if (mem % contentsTimeLevs == 1) then
-!            field => mem % r5
-!         else
-!            field => mem % r5a(local_timeLevel)
-!         end if
-!
-!      else
-!
-!         call pool_mesg('Error: Field '//trim(key)//' not found in pool.')
-!
-!      end if
-!
-!   end subroutine wrfjedi_pool_get_field_5d_real!}}}
-!
-!
-!!-----------------------------------------------------------------------
-!!  subroutine wrfjedi_pool_get_field_0d_int
-!!
-!!> \brief WRFJEDI Pool 0D Integer field get subroutine
-!!> \author Ming Hu
-!!> \date   03/27/2014
-!!> \details
-!!> This subroutine returns a pointer to the field associated with key in inPool.
-!!
-!!-----------------------------------------------------------------------
-!   subroutine wrfjedi_pool_get_field_0d_int(inPool, key, field, timeLevel)!{{{
-!
-!      implicit none
-!
-!      type (wrfjedi_pool_type), intent(in) :: inPool
-!      character (len=*), intent(in) :: key
-!      type (field0DInteger), pointer :: field
-!      integer, intent(in), optional :: timeLevel
-!
-!      type (fieldlist), pointer :: mem
-!      integer :: local_timeLevel
-!
-!
-!      if (present(timeLevel)) then
-!         local_timeLevel = timeLevel
-!      else
-!         local_timeLevel = 1
-!      end if
-!
-!      mem => pool_get_member(inPool, key, WRFJEDI_POOL_FIELD)
-!
-!      nullify(field)
-!      if (associated(mem)) then
-!
-!         if (mem % contentsType /= WRFJEDI_POOL_INTEGER) then
-!            call pool_mesg('Error: Field '//trim(key)//' is not type integer.')
-!         end if
-!         if (mem % contentsDims /= 0) then
-!            call pool_mesg('Error: Field '//trim(key)//' is not a 0-d field.')
-!         end if
-!         if ((mem % contentsTimeLevs > 1) .and. (.not. present(timeLevel))) then
-!            call pool_mesg('Error: Field '//trim(key)//' has more than one time level, but no timeLevel argument given.')
-!         end if
-!         if (mem % contentsTimeLevs < local_timeLevel) then
-!            call pool_mesg('Error: Field '//trim(key)//' has too few time levels.')
-!         end if
-!         
-!         if (mem % contentsTimeLevs == 1) then
-!            field => mem % i0
-!         else
-!            field => mem % i0a(local_timeLevel)
-!         end if
-!
-!      else
-!
-!         call pool_mesg('Error: Field '//trim(key)//' not found in pool.')
-!
-!      end if
-!
-!   end subroutine wrfjedi_pool_get_field_0d_int!}}}
-!
-!
-!!-----------------------------------------------------------------------
-!!  subroutine wrfjedi_pool_get_field_1d_int
-!!
-!!> \brief WRFJEDI Pool 1D Integer field get subroutine
-!!> \author Ming Hu
-!!> \date   03/27/2014
-!!> \details
-!!> This subroutine returns a pointer to the field associated with key in inPool.
-!!
-!!-----------------------------------------------------------------------
-!   subroutine wrfjedi_pool_get_field_1d_int(inPool, key, field, timeLevel)!{{{
-!
-!      implicit none
-!
-!      type (wrfjedi_pool_type), intent(in) :: inPool
-!      character (len=*), intent(in) :: key
-!      type (field1DInteger), pointer :: field
-!      integer, intent(in), optional :: timeLevel
-!
-!      type (fieldlist), pointer :: mem
-!      integer :: local_timeLevel
-!
-!
-!      if (present(timeLevel)) then
-!         local_timeLevel = timeLevel
-!      else
-!         local_timeLevel = 1
-!      end if
-!
-!      mem => pool_get_member(inPool, key, WRFJEDI_POOL_FIELD)
-!
-!      nullify(field)
-!      if (associated(mem)) then
-!
-!         if (mem % contentsType /= WRFJEDI_POOL_INTEGER) then
-!            call pool_mesg('Error: Field '//trim(key)//' is not type integer.')
-!         end if
-!         if (mem % contentsDims /= 1) then
-!            call pool_mesg('Error: Field '//trim(key)//' is not a 1-d field.')
-!         end if
-!         if ((mem % contentsTimeLevs > 1) .and. (.not. present(timeLevel))) then
-!            call pool_mesg('Error: Field '//trim(key)//' has more than one time level, but no timeLevel argument given.')
-!         end if
-!         if (mem % contentsTimeLevs < local_timeLevel) then
-!            call pool_mesg('Error: Field '//trim(key)//' has too few time levels.')
-!         end if
-!         
-!         if (mem % contentsTimeLevs == 1) then
-!            field => mem % i1
-!         else
-!            field => mem % i1a(local_timeLevel)
-!         end if
-!
-!      else
-!
-!         call pool_mesg('Error: Field '//trim(key)//' not found in pool.')
-!
-!      end if
-!
-!   end subroutine wrfjedi_pool_get_field_1d_int!}}}
-!
-!
-!!-----------------------------------------------------------------------
-!!  subroutine wrfjedi_pool_get_field_2d_int
-!!
-!!> \brief WRFJEDI Pool 2D Integer field get subroutine
-!!> \author Ming Hu
-!!> \date   03/27/2014
-!!> \details
-!!> This subroutine returns a pointer to the field associated with key in inPool.
-!!
-!!-----------------------------------------------------------------------
-!   subroutine wrfjedi_pool_get_field_2d_int(inPool, key, field, timeLevel)!{{{
-!
-!      implicit none
-!
-!      type (wrfjedi_pool_type), intent(in) :: inPool
-!      character (len=*), intent(in) :: key
-!      type (field2DInteger), pointer :: field
-!      integer, intent(in), optional :: timeLevel
-!
-!      type (fieldlist), pointer :: mem
-!      integer :: local_timeLevel
-!
-!
-!      if (present(timeLevel)) then
-!         local_timeLevel = timeLevel
-!      else
-!         local_timeLevel = 1
-!      end if
-!
-!      mem => pool_get_member(inPool, key, WRFJEDI_POOL_FIELD)
-!
-!      nullify(field)
-!      if (associated(mem)) then
-!
-!         if (mem % contentsType /= WRFJEDI_POOL_INTEGER) then
-!            call pool_mesg('Error: Field '//trim(key)//' is not type integer.')
-!         end if
-!         if (mem % contentsDims /= 2) then
-!            call pool_mesg('Error: Field '//trim(key)//' is not a 2-d field.')
-!         end if
-!         if ((mem % contentsTimeLevs > 1) .and. (.not. present(timeLevel))) then
-!            call pool_mesg('Error: Field '//trim(key)//' has more than one time level, but no timeLevel argument given.')
-!         end if
-!         if (mem % contentsTimeLevs < local_timeLevel) then
-!            call pool_mesg('Error: Field '//trim(key)//' has too few time levels.')
-!         end if
-!         
-!         if (mem % contentsTimeLevs == 1) then
-!            field => mem % i2
-!         else
-!            field => mem % i2a(local_timeLevel)
-!         end if
-!
-!      else
-!
-!         call pool_mesg('Error: Field '//trim(key)//' not found in pool.')
-!
-!      end if
-!
-!   end subroutine wrfjedi_pool_get_field_2d_int!}}}
-!
-!
-!!-----------------------------------------------------------------------
-!!  subroutine wrfjedi_pool_get_field_3d_int
-!!
-!!> \brief WRFJEDI Pool 3D Integer field get subroutine
-!!> \author Ming Hu
-!!> \date   03/27/2014
-!!> \details
-!!> This subroutine returns a pointer to the field associated with key in inPool.
-!!
-!!-----------------------------------------------------------------------
-!   subroutine wrfjedi_pool_get_field_3d_int(inPool, key, field, timeLevel)!{{{
-!
-!      implicit none
-!
-!      type (wrfjedi_pool_type), intent(in) :: inPool
-!      character (len=*), intent(in) :: key
-!      type (field3DInteger), pointer :: field
-!      integer, intent(in), optional :: timeLevel
-!
-!      type (fieldlist), pointer :: mem
-!      integer :: local_timeLevel
-!
-!
-!      if (present(timeLevel)) then
-!         local_timeLevel = timeLevel
-!      else
-!         local_timeLevel = 1
-!      end if
-!
-!      mem => pool_get_member(inPool, key, WRFJEDI_POOL_FIELD)
-!
-!      nullify(field)
-!      if (associated(mem)) then
-!
-!         if (mem % contentsType /= WRFJEDI_POOL_INTEGER) then
-!            call pool_mesg('Error: Field '//trim(key)//' is not type integer.')
-!         end if
-!         if (mem % contentsDims /= 3) then
-!            call pool_mesg('Error: Field '//trim(key)//' is not a 3-d field.')
-!         end if
-!         if ((mem % contentsTimeLevs > 1) .and. (.not. present(timeLevel))) then
-!            call pool_mesg('Error: Field '//trim(key)//' has more than one time level, but no timeLevel argument given.')
-!         end if
-!         if (mem % contentsTimeLevs < local_timeLevel) then
-!            call pool_mesg('Error: Field '//trim(key)//' has too few time levels.')
-!         end if
-!         
-!         if (mem % contentsTimeLevs == 1) then
-!            field => mem % i3
-!         else
-!            field => mem % i3a(local_timeLevel)
-!         end if
-!
-!      else
-!
-!         call pool_mesg('Error: Field '//trim(key)//' not found in pool.')
-!
-!      end if
-!
-!   end subroutine wrfjedi_pool_get_field_3d_int!}}}
+!-----------------------------------------------------------------------
+!  subroutine wrfjedi_pool_get_field_3d_real
+!
+!> \brief WRFJEDI Pool 3D Real field get subroutine
+!> \author Ming Hu
+!> \date   11/19/2018
+!> \details
+!> This subroutine returns a pointer to the field associated with key in inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine wrfjedi_pool_get_field_3d_real(inPool, key, field, timeLevel)!{{{
+
+      implicit none
+
+      type (wrfjedi_pool_type), intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      type (field3DReal), pointer :: field
+      integer, intent(in), optional :: timeLevel
+
+      type (fieldlist), pointer :: mem
+      integer :: local_timeLevel
+
+
+      if (present(timeLevel)) then
+         local_timeLevel = timeLevel
+      else
+         local_timeLevel = 1
+      end if
+
+      mem => pool_get_member(inPool, key, WRFJEDI_POOL_FIELD)
+
+      nullify(field%array)
+      if (associated(mem)) then
+
+         if (mem % Type /= WRFJEDI_POOL_REAL) then
+            call pool_mesg('Error: Field '//trim(key)//' is not type real.')
+         end if
+         if (mem % Ndim /= 3) then
+            call pool_mesg('Error: Field '//trim(key)//' is not a 3-d field.')
+         end if
+
+         call field%fillFieldHead(mem)
+!         call field%printFieldHead()
+         field%array => mem % rfield_3d
+
+      else
+
+         call pool_mesg('Error: Field '//trim(key)//' not found in pool.')
+
+      end if
+
+   end subroutine wrfjedi_pool_get_field_3d_real!}}}
+!
+!
+!-----------------------------------------------------------------------
+!  subroutine wrfjedi_pool_get_field_4d_real
+!
+!> \brief WRFJEDI Pool 4D Real field get subroutine
+!> \author Ming Hu
+!> \date   11/19/2018
+!> \details
+!> This subroutine returns a pointer to the field associated with key in inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine wrfjedi_pool_get_field_4d_real(inPool, key, field, timeLevel)!{{{
+
+      implicit none
+
+      type (wrfjedi_pool_type), intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      type (field4DReal), pointer :: field
+      integer, intent(in), optional :: timeLevel
+
+      type (fieldlist), pointer :: mem
+      integer :: local_timeLevel
+
+
+      if (present(timeLevel)) then
+         local_timeLevel = timeLevel
+      else
+         local_timeLevel = 1
+      end if
+
+      mem => pool_get_member(inPool, key, WRFJEDI_POOL_FIELD)
+
+      nullify(field%array)
+      if (associated(mem)) then
+
+         if (mem % Type /= WRFJEDI_POOL_REAL) then
+            call pool_mesg('Error: Field '//trim(key)//' is not type real.')
+         end if
+         if (mem % Ndim /= 4) then
+            call pool_mesg('Error: Field '//trim(key)//' is not a 4-d field.')
+         end if
+
+          call field%fillFieldHead(mem)
+          field%array => mem % rfield_4d
+
+      else
+
+         call pool_mesg('Error: Field '//trim(key)//' not found in pool.')
+
+      end if
+
+   end subroutine wrfjedi_pool_get_field_4d_real!}}}
+!
+!
+!-----------------------------------------------------------------------
+!  subroutine wrfjedi_pool_get_field_0d_int
+!
+!> \brief WRFJEDI Pool 0D Integer field get subroutine
+!> \author Ming Hu
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns a pointer to the field associated with key in inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine wrfjedi_pool_get_field_0d_int(inPool, key, field, timeLevel)!{{{
+
+      implicit none
+
+      type (wrfjedi_pool_type), intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      type (field0DInteger), pointer :: field
+      integer, intent(in), optional :: timeLevel
+
+      type (fieldlist), pointer :: mem
+      integer :: local_timeLevel
+
+
+      if (present(timeLevel)) then
+         local_timeLevel = timeLevel
+      else
+         local_timeLevel = 1
+      end if
+
+      mem => pool_get_member(inPool, key, WRFJEDI_POOL_FIELD)
+
+      nullify(field%array)
+      if (associated(mem)) then
+
+         if (mem % Type /= WRFJEDI_POOL_INTEGER) then
+            call pool_mesg('Error: Field '//trim(key)//' is not type integer.')
+         end if
+         if (mem % Ndim /= 0) then
+            call pool_mesg('Error: Field '//trim(key)//' is not a 0-d field.')
+         end if
+
+         call field%fillFieldHead(mem)
+         field%array => mem % ifield_0d
+
+      else
+
+         call pool_mesg('Error: Field '//trim(key)//' not found in pool.')
+
+      end if
+
+   end subroutine wrfjedi_pool_get_field_0d_int!}}}
+!
+!
+!-----------------------------------------------------------------------
+!  subroutine wrfjedi_pool_get_field_1d_int
+!
+!> \brief WRFJEDI Pool 1D Integer field get subroutine
+!> \author Ming Hu
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns a pointer to the field associated with key in inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine wrfjedi_pool_get_field_1d_int(inPool, key, field, timeLevel)!{{{
+
+      implicit none
+
+      type (wrfjedi_pool_type), intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      type (field1DInteger), pointer :: field
+      integer, intent(in), optional :: timeLevel
+
+      type (fieldlist), pointer :: mem
+      integer :: local_timeLevel
+
+
+      if (present(timeLevel)) then
+         local_timeLevel = timeLevel
+      else
+         local_timeLevel = 1
+      end if
+
+      mem => pool_get_member(inPool, key, WRFJEDI_POOL_FIELD)
+
+      nullify(field%array)
+      if (associated(mem)) then
+
+         if (mem % Type /= WRFJEDI_POOL_INTEGER) then
+            call pool_mesg('Error: Field '//trim(key)//' is not type integer.')
+         end if
+         if (mem % Ndim /= 1) then
+            call pool_mesg('Error: Field '//trim(key)//' is not a 1-d field.')
+         end if
+
+         call field%fillFieldHead(mem)
+         field%array => mem % ifield_1d
+
+      else
+
+         call pool_mesg('Error: Field '//trim(key)//' not found in pool.')
+
+      end if
+
+   end subroutine wrfjedi_pool_get_field_1d_int!}}}
+!
+!
+!-----------------------------------------------------------------------
+!  subroutine wrfjedi_pool_get_field_2d_int
+!
+!> \brief WRFJEDI Pool 2D Integer field get subroutine
+!> \author Ming Hu
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns a pointer to the field associated with key in inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine wrfjedi_pool_get_field_2d_int(inPool, key, field, timeLevel)!{{{
+
+      implicit none
+
+      type (wrfjedi_pool_type), intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      type (field2DInteger), pointer :: field
+      integer, intent(in), optional :: timeLevel
+
+      type (fieldlist), pointer :: mem
+      integer :: local_timeLevel
+
+
+      if (present(timeLevel)) then
+         local_timeLevel = timeLevel
+      else
+         local_timeLevel = 1
+      end if
+
+      mem => pool_get_member(inPool, key, WRFJEDI_POOL_FIELD)
+
+      nullify(field%array)
+      if (associated(mem)) then
+
+         if (mem % Type /= WRFJEDI_POOL_INTEGER) then
+            call pool_mesg('Error: Field '//trim(key)//' is not type integer.')
+         end if
+         if (mem % Ndim /= 2) then
+            call pool_mesg('Error: Field '//trim(key)//' is not a 2-d field.')
+         end if
+
+         call field%fillFieldHead(mem)
+         field%array => mem % ifield_2d
+
+      else
+
+         call pool_mesg('Error: Field '//trim(key)//' not found in pool.')
+
+      end if
+
+   end subroutine wrfjedi_pool_get_field_2d_int!}}}
+!
+!
+!-----------------------------------------------------------------------
+!  subroutine wrfjedi_pool_get_field_3d_int
+!
+!> \brief WRFJEDI Pool 3D Integer field get subroutine
+!> \author Ming Hu
+!> \date   11/19/2018
+!> \details
+!> This subroutine returns a pointer to the field associated with key in inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine wrfjedi_pool_get_field_3d_int(inPool, key, field, timeLevel)!{{{
+
+      implicit none
+
+      type (wrfjedi_pool_type), intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      type (field3DInteger), pointer :: field
+      integer, intent(in), optional :: timeLevel
+
+      type (fieldlist), pointer :: mem
+      integer :: local_timeLevel
+
+
+      if (present(timeLevel)) then
+         local_timeLevel = timeLevel
+      else
+         local_timeLevel = 1
+      end if
+
+      mem => pool_get_member(inPool, key, WRFJEDI_POOL_FIELD)
+
+      nullify(field%array)
+      if (associated(mem)) then
+
+         if (mem % Type /= WRFJEDI_POOL_INTEGER) then
+            call pool_mesg('Error: Field '//trim(key)//' is not type integer.')
+         end if
+         if (mem % Ndim /= 3) then
+            call pool_mesg('Error: Field '//trim(key)//' is not a 3-d field.')
+         end if
+
+         call field%fillFieldHead(mem)
+         field%array => mem % ifield_3d
+
+      else
+
+         call pool_mesg('Error: Field '//trim(key)//' not found in pool.')
+
+      end if
+
+   end subroutine wrfjedi_pool_get_field_3d_int!}}}
 !
 !
 !!-----------------------------------------------------------------------
@@ -3803,76 +4013,76 @@ module wrfjedi_pool_routines
 !   end subroutine wrfjedi_pool_get_field_1d_char!}}}
 !
 !
-!!-----------------------------------------------------------------------
-!!  subroutine wrfjedi_pool_get_array_0d_real
-!!
-!!> \brief WRFJEDI Pool 0D Real field get subroutine
-!!> \author Ming Hu
-!!> \date   03/27/2014
-!!> \details
-!!> This subroutine returns a pointer to the array associated with key in inPool.
-!!
-!!-----------------------------------------------------------------------
-!   subroutine wrfjedi_pool_get_array_0d_real(inPool, key, scalar, timeLevel)!{{{
+!-----------------------------------------------------------------------
+!  subroutine wrfjedi_pool_get_array_0d_real
 !
-!      implicit none
+!> \brief WRFJEDI Pool 0D Real field get subroutine
+!> \author Ming Hu
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns a pointer to the array associated with key in inPool.
 !
-!      type (wrfjedi_pool_type), intent(in) :: inPool
-!      character (len=*), intent(in) :: key
-!      real (kind=RKIND), pointer :: scalar
-!      integer, intent(in), optional :: timeLevel
-!
-!      type (field0DReal), pointer :: field
-!
-!
-!      call wrfjedi_pool_get_field_0d_real(inPool, key, field, timeLevel)
-!
-!      nullify(scalar)
-!      if (associated(field)) scalar => field % scalar
-!
-!   end subroutine wrfjedi_pool_get_array_0d_real!}}}
-!
-!
-!!-----------------------------------------------------------------------
-!!  subroutine wrfjedi_pool_get_array_1d_real
-!!
-!!> \brief WRFJEDI Pool 1D Real field get subroutine
-!!> \author Ming Hu
-!!> \date   03/27/2014
-!!> \details
-!!> This subroutine returns a pointer to the array associated with key in inPool.
-!!
-!!-----------------------------------------------------------------------
-!   subroutine wrfjedi_pool_get_array_1d_real(inPool, key, array, timeLevel)!{{{
-!
-!      implicit none
-!
-!      type (wrfjedi_pool_type), intent(in) :: inPool
-!      character (len=*), intent(in) :: key
-!      real (kind=RKIND), dimension(:), pointer :: array
-!      integer, intent(in), optional :: timeLevel
-!
-!      type (field1DReal), pointer :: field
+!-----------------------------------------------------------------------
+   subroutine wrfjedi_pool_get_array_0d_real(inPool, key, scalar, timeLevel)!{{{
+
+      implicit none
+
+      type (wrfjedi_pool_type), intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      real (kind=RKIND), pointer :: scalar
+      integer, intent(in), optional :: timeLevel
+
+      type (field0DReal), pointer :: field
+
+
+      call wrfjedi_pool_get_field_0d_real(inPool, key, field, timeLevel)
+
+      nullify(scalar)
+      if (associated(field)) scalar => field % array
+
+   end subroutine wrfjedi_pool_get_array_0d_real!}}}
 !
 !
-!      call wrfjedi_pool_get_field_1d_real(inPool, key, field, timeLevel)
+!-----------------------------------------------------------------------
+!  subroutine wrfjedi_pool_get_array_1d_real
 !
-!      nullify(array)
-!      if (associated(field)) array => field % array
+!> \brief WRFJEDI Pool 1D Real field get subroutine
+!> \author Ming Hu
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns a pointer to the array associated with key in inPool.
 !
-!   end subroutine wrfjedi_pool_get_array_1d_real!}}}
+!-----------------------------------------------------------------------
+   subroutine wrfjedi_pool_get_array_1d_real(inPool, key, array, timeLevel)!{{{
+
+      implicit none
+
+      type (wrfjedi_pool_type), intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      real (kind=RKIND), dimension(:), pointer :: array
+      integer, intent(in), optional :: timeLevel
+
+      type (field1DReal), pointer :: field
+
+
+      call wrfjedi_pool_get_field_1d_real(inPool, key, field, timeLevel)
+
+      nullify(array)
+      if (associated(field)) array => field % array
+
+   end subroutine wrfjedi_pool_get_array_1d_real!}}}
+
 !
+!-----------------------------------------------------------------------
+!  subroutine wrfjedi_pool_get_array_2d_real
 !
-!!-----------------------------------------------------------------------
-!!  subroutine wrfjedi_pool_get_array_2d_real
-!!
-!!> \brief WRFJEDI Pool 2D Real field get subroutine
-!!> \author Ming Hu
-!!> \date   03/27/2014
-!!> \details
-!!> This subroutine returns a pointer to the array associated with key in inPool.
-!!
-!!-----------------------------------------------------------------------
+!> \brief WRFJEDI Pool 2D Real field get subroutine
+!> \author Ming Hu
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns a pointer to the array associated with key in inPool.
+!
+!-----------------------------------------------------------------------
    subroutine wrfjedi_pool_get_array_2d_real(inPool, key, array, timeLevel)!{{{
 
       implicit none
@@ -3893,66 +4103,66 @@ module wrfjedi_pool_routines
    end subroutine wrfjedi_pool_get_array_2d_real!}}}
 !
 !
-!!-----------------------------------------------------------------------
-!!  subroutine wrfjedi_pool_get_array_3d_real
-!!
-!!> \brief WRFJEDI Pool 3D Real field get subroutine
-!!> \author Ming Hu
-!!> \date   03/27/2014
-!!> \details
-!!> This subroutine returns a pointer to the array associated with key in inPool.
-!!
-!!-----------------------------------------------------------------------
-!   subroutine wrfjedi_pool_get_array_3d_real(inPool, key, array, timeLevel)!{{{
+!-----------------------------------------------------------------------
+!  subroutine wrfjedi_pool_get_array_3d_real
 !
-!      implicit none
+!> \brief WRFJEDI Pool 3D Real field get subroutine
+!> \author Ming Hu
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns a pointer to the array associated with key in inPool.
 !
-!      type (wrfjedi_pool_type), intent(in) :: inPool
-!      character (len=*), intent(in) :: key
-!      real (kind=RKIND), dimension(:,:,:), pointer :: array
-!      integer, intent(in), optional :: timeLevel
-!
-!      type (field3DReal), pointer :: field
-!
-!
-!      call wrfjedi_pool_get_field_3d_real(inPool, key, field, timeLevel)
-!
-!      nullify(array)
-!      if (associated(field)) array => field % array
-!
-!   end subroutine wrfjedi_pool_get_array_3d_real!}}}
-!
-!
-!!-----------------------------------------------------------------------
-!!  subroutine wrfjedi_pool_get_array_4d_real
-!!
-!!> \brief WRFJEDI Pool 4D Real field get subroutine
-!!> \author Ming Hu
-!!> \date   03/27/2014
-!!> \details
-!!> This subroutine returns a pointer to the array associated with key in inPool.
-!!
-!!-----------------------------------------------------------------------
-!   subroutine wrfjedi_pool_get_array_4d_real(inPool, key, array, timeLevel)!{{{
-!
-!      implicit none
-!
-!      type (wrfjedi_pool_type), intent(in) :: inPool
-!      character (len=*), intent(in) :: key
-!      real (kind=RKIND), dimension(:,:,:,:), pointer :: array
-!      integer, intent(in), optional :: timeLevel
-!
-!      type (field4DReal), pointer :: field
+!-----------------------------------------------------------------------
+   subroutine wrfjedi_pool_get_array_3d_real(inPool, key, array, timeLevel)!{{{
+
+      implicit none
+
+      type (wrfjedi_pool_type), intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      real (kind=RKIND), dimension(:,:,:), pointer :: array
+      integer, intent(in), optional :: timeLevel
+
+      type (field3DReal), pointer :: field
+
+
+      call wrfjedi_pool_get_field_3d_real(inPool, key, field, timeLevel)
+
+      nullify(array)
+      if (associated(field)) array => field % array
+
+   end subroutine wrfjedi_pool_get_array_3d_real!}}}
 !
 !
-!      call wrfjedi_pool_get_field_4d_real(inPool, key, field, timeLevel)
+!-----------------------------------------------------------------------
+!  subroutine wrfjedi_pool_get_array_4d_real
 !
-!      nullify(array)
-!      if (associated(field)) array => field % array
+!> \brief WRFJEDI Pool 4D Real field get subroutine
+!> \author Ming Hu
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns a pointer to the array associated with key in inPool.
 !
-!   end subroutine wrfjedi_pool_get_array_4d_real!}}}
-!
-!
+!-----------------------------------------------------------------------
+   subroutine wrfjedi_pool_get_array_4d_real(inPool, key, array, timeLevel)!{{{
+
+      implicit none
+
+      type (wrfjedi_pool_type), intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      real (kind=RKIND), dimension(:,:,:,:), pointer :: array
+      integer, intent(in), optional :: timeLevel
+
+      type (field4DReal), pointer :: field
+
+
+      call wrfjedi_pool_get_field_4d_real(inPool, key, field, timeLevel)
+
+      nullify(array)
+      if (associated(field)) array => field % array
+
+   end subroutine wrfjedi_pool_get_array_4d_real!}}}
+
+
 !!-----------------------------------------------------------------------
 !!  subroutine wrfjedi_pool_get_array_5d_real
 !!
@@ -3983,126 +4193,126 @@ module wrfjedi_pool_routines
 !   end subroutine wrfjedi_pool_get_array_5d_real!}}}
 !
 !
-!!-----------------------------------------------------------------------
-!!  subroutine wrfjedi_pool_get_array_0d_int
-!!
-!!> \brief WRFJEDI Pool 0D Integer field get subroutine
-!!> \author Ming Hu
-!!> \date   03/27/2014
-!!> \details
-!!> This subroutine returns a pointer to the array associated with key in inPool.
-!!
-!!-----------------------------------------------------------------------
-!   subroutine wrfjedi_pool_get_array_0d_int(inPool, key, scalar, timeLevel)!{{{
+!-----------------------------------------------------------------------
+!  subroutine wrfjedi_pool_get_array_0d_int
 !
-!      implicit none
+!> \brief WRFJEDI Pool 0D Integer field get subroutine
+!> \author Ming Hu
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns a pointer to the array associated with key in inPool.
 !
-!      type (wrfjedi_pool_type), intent(in) :: inPool
-!      character (len=*), intent(in) :: key
-!      integer, pointer :: scalar
-!      integer, intent(in), optional :: timeLevel
+!-----------------------------------------------------------------------
+   subroutine wrfjedi_pool_get_array_0d_int(inPool, key, scalar, timeLevel)!{{{
+
+      implicit none
+
+      type (wrfjedi_pool_type), intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      integer, pointer :: scalar
+      integer, intent(in), optional :: timeLevel
+
+      type (field0DInteger), pointer :: field
+
+
+      call wrfjedi_pool_get_field_0d_int(inPool, key, field, timeLevel)
+
+      nullify(scalar)
+      if (associated(field)) scalar => field % array
+
+   end subroutine wrfjedi_pool_get_array_0d_int!}}}
+
 !
-!      type (field0DInteger), pointer :: field
+!-----------------------------------------------------------------------
+!  subroutine wrfjedi_pool_get_array_1d_int
 !
+!> \brief WRFJEDI Pool 1D Integer field get subroutine
+!> \author Ming Hu
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns a pointer to the array associated with key in inPool.
 !
-!      call wrfjedi_pool_get_field_0d_int(inPool, key, field, timeLevel)
+!-----------------------------------------------------------------------
+   subroutine wrfjedi_pool_get_array_1d_int(inPool, key, array, timeLevel)!{{{
+
+      implicit none
+
+      type (wrfjedi_pool_type), intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      integer, dimension(:), pointer :: array
+      integer, intent(in), optional :: timeLevel
+
+      type (field1DInteger), pointer :: field
+
+
+      call wrfjedi_pool_get_field_1d_int(inPool, key, field, timeLevel)
+
+      nullify(array)
+      if (associated(field)) array => field % array
+
+   end subroutine wrfjedi_pool_get_array_1d_int!}}}
+
 !
-!      nullify(scalar)
-!      if (associated(field)) scalar => field % scalar
+!-----------------------------------------------------------------------
+!  subroutine wrfjedi_pool_get_array_2d_int
 !
-!   end subroutine wrfjedi_pool_get_array_0d_int!}}}
+!> \brief WRFJEDI Pool 2D Integer field get subroutine
+!> \author Ming Hu
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns a pointer to the array associated with key in inPool.
 !
+!-----------------------------------------------------------------------
+   subroutine wrfjedi_pool_get_array_2d_int(inPool, key, array, timeLevel)!{{{
+
+      implicit none
+
+      type (wrfjedi_pool_type), intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      integer, dimension(:,:), pointer :: array
+      integer, intent(in), optional :: timeLevel
+
+      type (field2DInteger), pointer :: field
+
+
+      call wrfjedi_pool_get_field_2d_int(inPool, key, field, timeLevel)
+
+      nullify(array)
+      if (associated(field)) array => field % array
+
+   end subroutine wrfjedi_pool_get_array_2d_int!}}}
+
 !
-!!-----------------------------------------------------------------------
-!!  subroutine wrfjedi_pool_get_array_1d_int
-!!
-!!> \brief WRFJEDI Pool 1D Integer field get subroutine
-!!> \author Ming Hu
-!!> \date   03/27/2014
-!!> \details
-!!> This subroutine returns a pointer to the array associated with key in inPool.
-!!
-!!-----------------------------------------------------------------------
-!   subroutine wrfjedi_pool_get_array_1d_int(inPool, key, array, timeLevel)!{{{
+!-----------------------------------------------------------------------
+!  subroutine wrfjedi_pool_get_array_3d_int
 !
-!      implicit none
+!> \brief WRFJEDI Pool 3D Integer field get subroutine
+!> \author Ming Hu
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns a pointer to the array associated with key in inPool.
 !
-!      type (wrfjedi_pool_type), intent(in) :: inPool
-!      character (len=*), intent(in) :: key
-!      integer, dimension(:), pointer :: array
-!      integer, intent(in), optional :: timeLevel
-!
-!      type (field1DInteger), pointer :: field
-!
-!
-!      call wrfjedi_pool_get_field_1d_int(inPool, key, field, timeLevel)
-!
-!      nullify(array)
-!      if (associated(field)) array => field % array
-!
-!   end subroutine wrfjedi_pool_get_array_1d_int!}}}
-!
-!
-!!-----------------------------------------------------------------------
-!!  subroutine wrfjedi_pool_get_array_2d_int
-!!
-!!> \brief WRFJEDI Pool 2D Integer field get subroutine
-!!> \author Ming Hu
-!!> \date   03/27/2014
-!!> \details
-!!> This subroutine returns a pointer to the array associated with key in inPool.
-!!
-!!-----------------------------------------------------------------------
-!   subroutine wrfjedi_pool_get_array_2d_int(inPool, key, array, timeLevel)!{{{
-!
-!      implicit none
-!
-!      type (wrfjedi_pool_type), intent(in) :: inPool
-!      character (len=*), intent(in) :: key
-!      integer, dimension(:,:), pointer :: array
-!      integer, intent(in), optional :: timeLevel
-!
-!      type (field2DInteger), pointer :: field
-!
-!
-!      call wrfjedi_pool_get_field_2d_int(inPool, key, field, timeLevel)
-!
-!      nullify(array)
-!      if (associated(field)) array => field % array
-!
-!   end subroutine wrfjedi_pool_get_array_2d_int!}}}
-!
-!
-!!-----------------------------------------------------------------------
-!!  subroutine wrfjedi_pool_get_array_3d_int
-!!
-!!> \brief WRFJEDI Pool 3D Integer field get subroutine
-!!> \author Ming Hu
-!!> \date   03/27/2014
-!!> \details
-!!> This subroutine returns a pointer to the array associated with key in inPool.
-!!
-!!-----------------------------------------------------------------------
-!   subroutine wrfjedi_pool_get_array_3d_int(inPool, key, array, timeLevel)!{{{
-!
-!      implicit none
-!
-!      type (wrfjedi_pool_type), intent(in) :: inPool
-!      character (len=*), intent(in) :: key
-!      integer, dimension(:,:,:), pointer :: array
-!      integer, intent(in), optional :: timeLevel
-!
-!      type (field3DInteger), pointer :: field
-!
-!
-!      call wrfjedi_pool_get_field_3d_int(inPool, key, field, timeLevel)
-!
-!      nullify(array)
-!      if (associated(field)) array => field % array
-!
-!   end subroutine wrfjedi_pool_get_array_3d_int!}}}
-!
-!
+!-----------------------------------------------------------------------
+   subroutine wrfjedi_pool_get_array_3d_int(inPool, key, array, timeLevel)!{{{
+
+      implicit none
+
+      type (wrfjedi_pool_type), intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      integer, dimension(:,:,:), pointer :: array
+      integer, intent(in), optional :: timeLevel
+
+      type (field3DInteger), pointer :: field
+
+
+      call wrfjedi_pool_get_field_3d_int(inPool, key, field, timeLevel)
+
+      nullify(array)
+      if (associated(field)) array => field % array
+
+   end subroutine wrfjedi_pool_get_array_3d_int!}}}
+
+
 !!-----------------------------------------------------------------------
 !!  subroutine wrfjedi_pool_get_array_0d_char
 !!
@@ -5524,11 +5734,12 @@ module wrfjedi_pool_routines
    end subroutine pool_print_table_size!}}}
 
 
-   recursive subroutine pool_print_members(pool)!{{{
+   recursive subroutine pool_print_members(pool, poolname)!{{{
 
       implicit none
 
-      type (wrfjedi_pool_type), intent(inout) :: pool
+      type (wrfjedi_pool_type), intent(in),pointer :: pool
+      character(len=*),intent(in),optional :: poolname
 
       integer :: i
       type (wrfjedi_pool_type), pointer :: subpool
@@ -5539,9 +5750,25 @@ module wrfjedi_pool_routines
       integer, pointer :: intPtr
       logical, pointer :: logPtr
       character (len=StrKIND) :: charPtr
+      type (field0DReal), pointer :: field0d
+      type (field1DReal), pointer :: field1d
       type (field2DReal), pointer :: field2d
+      type (field3DReal), pointer :: field3d
+      type (field4DReal), pointer :: field4d
+      type (field0DInteger), pointer :: ifield0d
+      type (field1DInteger), pointer :: ifield1d
+      type (field2DInteger), pointer :: ifield2d
+      type (field3DInteger), pointer :: ifield3d
       integer :: j
 
+      write(stderrUnit, *) '~~~~~~~~~~~~~ pool_print_members from pool ~~~~~~~~~~~'
+      if(present(poolname)) then
+          write(stderrUnit, *) ' pool name is ===> ', trim(poolname)
+      endif
+      if(.not.associated(pool)) then
+          write(stderrUnit, *) ' this pool pointer is not associated with any pool yet'
+          return
+      endif
       write(stderrUnit, *) '   Constants: '
       write(stderrUnit, *) '   Real: ', WRFJEDI_POOL_REAL
       write(stderrUnit, *) '   Integer: ', WRFJEDI_POOL_INTEGER
@@ -5565,31 +5792,87 @@ module wrfjedi_pool_routines
          else if (poolItr % memberType == WRFJEDI_POOL_PACKAGE) then
             write(stderrUnit, *) '   Package: ', trim(poolItr % memberName)
          else if (poolItr % memberType == WRFJEDI_POOL_FIELD) then
-            write(stderrUnit, *) '   Field: ', trim(poolItr % memberName), ' ',poolItr % dataType, poolItr % nDims,&
-                                                poolItr % nTimeLevels
+            write(stderrUnit, *) 'pool_print_members===> Field: ', trim(poolItr % memberName), ' ',&
+                               poolItr % dataType, poolItr % nDims,poolItr % nTimeLevels
 
             if (poolItr % dataType == WRFJEDI_POOL_REAL) then
                if (poolItr % nDims == 0) then
-!                   call wrfjedi_pool_get_field(pool_c, trim(poolItr % memberName), field0d)
+                   allocate(field0d)
+                   call wrfjedi_pool_get_field(pool, trim(poolItr % memberName), field0d)
+                   write(*,*) 'pool_print_members===>  0D real value: ', &
+                                  field0d % array
+                   deallocate(field0d)
+               else if (poolItr % nDims == 1) then
+                   allocate(field1d)
+                   call wrfjedi_pool_get_field(pool, trim(poolItr % memberName), field1d)
+                   write(*,*) 'pool_print_members===>  1D real MIN/MAX value: ', &
+                                  minval(field1d % array),maxval(field1d % array)
+                   call field1d%printFieldHead()
+                   deallocate(field1d)
                else if (poolItr % nDims == 2) then
                    allocate(field2d)
                    call wrfjedi_pool_get_field(pool, trim(poolItr % memberName), field2d)
                    write(*,*) 'pool_print_members===>  2D real MIN/MAX value: ', &
                                   minval(field2d % array),maxval(field2d % array)
-                   do j=field2d%sm2,field2d%sd2
-                      write(*,*) j,field2d % array(field2d%sm1:field2d%sd1,j)
-                   enddo
-                   do j=field2d%ed2,field2d%em2
-                      write(*,*) j,field2d % array(field2d%ed1:field2d%em1,j)
-                   enddo
+!                   do j=field2d%sm2,field2d%sd2
+!                      write(*,*) j,field2d % array(field2d%sm1:field2d%sd1,j)
+!                   enddo
+!                   do j=field2d%ed2,field2d%em2
+!                      write(*,*) j,field2d % array(field2d%ed1:field2d%em1,j)
+!                   enddo
                    call field2d%printFieldHead()
                    deallocate(field2d)
+               else if (poolItr % nDims == 3) then
+                   allocate(field3d)
+                   call wrfjedi_pool_get_field(pool, trim(poolItr % memberName), field3d)
+                   write(*,*) 'pool_print_members===>  3D real MIN/MAX value: ', &
+                                  minval(field3d % array),maxval(field3d % array)
+                   call field3d%printFieldHead()
+                   deallocate(field3d)
+               else if (poolItr % nDims == 4) then
+                   allocate(field4d)
+                   call wrfjedi_pool_get_field(pool, trim(poolItr % memberName), field4d)
+                   write(*,*) 'pool_print_members===>  4D real MIN/MAX value: ', &
+                                  minval(field4d % array),maxval(field4d % array)
+                   call field4d%printFieldHead()
+                   deallocate(field4d)
+               endif
+            endif
+
+            if (poolItr % dataType == WRFJEDI_POOL_INTEGER) then
+               if (poolItr % nDims == 0) then
+                   allocate(ifield0d)
+                   call wrfjedi_pool_get_field(pool, trim(poolItr % memberName), ifield0d)
+                   write(*,*) 'pool_print_members===>  0D integer value: ', &
+                                  ifield0d % array
+                   deallocate(ifield0d)
+               else if (poolItr % nDims == 1) then
+                   allocate(ifield1d)
+                   call wrfjedi_pool_get_field(pool, trim(poolItr % memberName), ifield1d)
+                   write(*,*) 'pool_print_members===>  1D integer  MIN/MAX value: ', &
+                                  minval(ifield1d % array),maxval(ifield1d % array)
+                   call ifield1d%printFieldHead()
+                   deallocate(ifield1d)
+               else if (poolItr % nDims == 2) then
+                   allocate(ifield3d)
+                   call wrfjedi_pool_get_field(pool, trim(poolItr % memberName), ifield2d)
+                   write(*,*) 'pool_print_members===>  2D integer  MIN/MAX value: ', &
+                                  minval(ifield2d % array),maxval(ifield2d % array)
+                   call ifield2d%printFieldHead()
+                   deallocate(ifield2d)
+               else if (poolItr % nDims == 3) then
+                   allocate(ifield3d)
+                   call wrfjedi_pool_get_field(pool, trim(poolItr % memberName), ifield3d)
+                   write(*,*) 'pool_print_members===>  3D integer  MIN/MAX value: ', &
+                                  minval(ifield3d % array),maxval(ifield3d % array)
+                   call ifield3d%printFieldHead()
+                   deallocate(ifield3d)
                endif
             endif
 
          end if
       end do
-      write(stderrUnit, *) 'Done with pool'
+      write(stderrUnit, *) '^^^^^^^^^^^^^ Done with print member pool ^^^^^^^^^^^^^^^^^'
       write(stderrUnit, *) ''
 
    end subroutine pool_print_members!}}}
@@ -5641,6 +5924,7 @@ module wrfjedi_pool_routines
          allocate(field)
          call field%fillFieldHead(infield)
          call field%sendFieldHead(newfield)
+         call wrfjedi_nullify_fieldlist(newfield)
 !         call field%printFieldHead()
          sm1=newfield%sm1
          em1=newfield%em1
@@ -5649,25 +5933,118 @@ module wrfjedi_pool_routines
          sm3=newfield%sm3
          em3=newfield%em3
          deallocate(field)
-         write(*,*) '=======check duplicate_fieldlist head:',sm1,em1,sm2,em2,sm3,em3
-         if(newfield%Ndim == 2 .and. newfield%Type==WRFJEDI_POOL_REAL ) then
-            ALLOCATE(newfield % rfield_2d(sm1:em1,sm2:em2),STAT=ierr)
-            if(ierr==0) then
-               newfield % rfield_2d = infield % rfield_2d
+!         write(*,*) '=======check duplicate_fieldlist head:',sm1,em1,sm2,em2,sm3,em3
+         if(newfield%Type==WRFJEDI_POOL_REAL ) then
+            if(newfield%Ndim == 0) then
+               ALLOCATE(newfield % rfield_0d,STAT=ierr)
+               if(ierr==0) then
+                  newfield % rfield_0d = infield % rfield_0d
+               endif
+
+            elseif(newfield%Ndim == 1) then
+               ALLOCATE(newfield % rfield_1d(sm1:em1),STAT=ierr)
+               if(ierr==0) then
+                  newfield % rfield_1d = infield % rfield_1d
+               endif
+
+            elseif(newfield%Ndim == 2) then
+               ALLOCATE(newfield % rfield_2d(sm1:em1,sm2:em2),STAT=ierr)
+               if(ierr==0) then
+                  newfield % rfield_2d = infield % rfield_2d
+               endif
+
+            elseif(newfield%Ndim == 3) then
+               ALLOCATE(newfield % rfield_3d(sm1:em1,sm2:em2,sm3:em3),STAT=ierr)
+               if(ierr==0) then
+                  newfield % rfield_3d = infield % rfield_3d
+               endif
+
+            elseif(newfield%Ndim == 4) then
+               ALLOCATE(newfield % rfield_4d(sm1:em1,sm2:em2,sm3:em3,1),STAT=ierr)
+               if(ierr==0) then
+                  newfield % rfield_4d = infield % rfield_4d
+               endif
+
+            else
+               call pool_mesg('Error: unkonw dimension in input field.')
+               write(*,*) 'newfield%Ndim=',newfield%Ndim
             endif
 
-         elseif(newfield%Ndim == 3 .and. newfield%Type==WRFJEDI_POOL_REAL ) then
-            ALLOCATE(newfield % rfield_3d(sm1:em1,sm2:em2,sm3:em3),STAT=ierr)
-            if(ierr==0) then
-               newfield % rfield_3d = infield % rfield_3d
+         else if(newfield%Type==WRFJEDI_POOL_INTEGER ) then
+            if(newfield%Ndim == 0) then
+               ALLOCATE(newfield % ifield_0d,STAT=ierr)
+               if(ierr==0) then
+                  newfield % ifield_0d = infield % ifield_0d
+               endif
+
+            elseif(newfield%Ndim == 1) then
+               ALLOCATE(newfield % ifield_1d(sm1:em1),STAT=ierr)
+               if(ierr==0) then
+                  newfield % ifield_1d = infield % ifield_1d
+               endif
+
+            elseif(newfield%Ndim == 2) then
+               ALLOCATE(newfield % ifield_2d(sm1:em1,sm2:em2),STAT=ierr)
+               if(ierr==0) then
+                  newfield % ifield_2d = infield % ifield_2d
+               endif
+
+            elseif(newfield%Ndim == 3) then
+               ALLOCATE(newfield % ifield_3d(sm1:em1,sm2:em2,sm3:em3),STAT=ierr)
+               if(ierr==0) then
+                  newfield % ifield_3d = infield % ifield_3d
+               endif
+
+            else
+               call pool_mesg('Error: unkonw dimension in input field.')
+               write(*,*) 'newfield%Ndim=',newfield%Ndim
             endif
          else
-            call pool_mesg('Error: unkonw Field '//trim(newfield%DataName)//' in input field.')
+            call pool_mesg('Error: unkonw data type '//newfield%Type//' in input field.')
          endif
       else
          call pool_mesg('Error: input Field is not associated.')
       end if
 
    end subroutine wrfjedi_duplicate_fieldlist
+
+   subroutine wrfjedi_nullify_fieldlist(infield)
+
+      type (fieldlist), intent(inout), pointer :: infield
+
+      nullify(infield%rfield_0d)
+      nullify(infield%rfield_1d)
+      nullify(infield%rfield_2d)
+      nullify(infield%rfield_3d)
+      nullify(infield%rfield_4d)
+      nullify(infield%rfield_5d)
+      nullify(infield%rfield_6d)
+      nullify(infield%rfield_7d)
+
+      nullify(infield%dfield_0d)
+      nullify(infield%dfield_1d)
+      nullify(infield%dfield_2d)
+      nullify(infield%dfield_3d)
+      nullify(infield%dfield_4d)
+      nullify(infield%dfield_5d)
+      nullify(infield%dfield_6d)
+      nullify(infield%dfield_7d)
+
+      nullify(infield%ifield_0d)
+      nullify(infield%ifield_1d)
+      nullify(infield%ifield_2d)
+      nullify(infield%ifield_3d)
+      nullify(infield%ifield_4d)
+      nullify(infield%ifield_5d)
+      nullify(infield%ifield_6d)
+      nullify(infield%ifield_7d)
+
+      nullify(infield%lfield_0d)
+      nullify(infield%lfield_1d)
+      nullify(infield%lfield_2d)
+
+   end subroutine wrfjedi_nullify_fieldlist
+!
+
 !
 end module wrfjedi_pool_routines

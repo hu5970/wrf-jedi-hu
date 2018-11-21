@@ -10,7 +10,7 @@
   },
   "forecast_length": "PT30M",
   "model": {
-    "variables": ["T_1", "MU_1", "PH_1", "U_1", "V_1"],
+    "variables": ["THM_1", "MU_1", "PH_1", "U_2", "V_2"],
     "name": "WRFJEDI",
     "tstep": "PT3M"
   },

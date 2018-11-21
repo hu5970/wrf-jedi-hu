@@ -22,7 +22,9 @@ module wrfjedi_derived_types
    use wrfjedi_kinds,      only : StrKIND, RKIND
    use module_domain_type, only : fieldlist
    private
-   public :: field2DReal,field2DInteger
+   public :: field0DReal,field0DInteger
+   public :: field1DReal,field1DInteger,field2DReal,field2DInteger
+   public :: field3DReal,field3DInteger,field4DReal,field4DInteger
 
    type :: fieldhead
       ! Information used by the I/O layer
@@ -51,21 +53,77 @@ module wrfjedi_derived_types
          procedure :: printFieldHead 
 
    end type fieldhead
+
    ! Derived type for storing fields
+   type,extends(fieldhead) :: field0DReal
+
+      ! Raw array holding field data on this block
+      real (kind=RKIND), pointer :: array=>NULL()
+
+   end type field0DReal
+
+   type,extends(fieldhead) :: field1DReal
+
+      ! Raw array holding field data on this block
+      real (kind=RKIND), dimension(:), pointer :: array=>NULL()
+
+   end type field1DReal
+
    type,extends(fieldhead) :: field2DReal
 
       ! Raw array holding field data on this block
-      real (kind=RKIND), dimension(:,:), pointer :: array
+      real (kind=RKIND), dimension(:,:), pointer :: array=>NULL()
 
    end type field2DReal
 
-   ! Derived type for storing fields
+   type,extends(fieldhead) :: field3DReal
+
+      ! Raw array holding field data on this block
+      real (kind=RKIND), dimension(:,:,:), pointer :: array=>NULL()
+
+   end type field3DReal
+
+   type,extends(fieldhead) :: field4DReal
+
+      ! Raw array holding field data on this block
+      real (kind=RKIND), dimension(:,:,:,:), pointer :: array=>NULL()
+
+   end type field4DReal
+
+   type,extends(fieldhead) :: field0DInteger
+
+      ! Raw array holding field data on this block
+      integer, pointer :: array=>NULL()
+
+   end type field0DInteger
+
+   type,extends(fieldhead) :: field1DInteger
+
+      ! Raw array holding field data on this block
+      integer, dimension(:), pointer :: array=>NULL()
+
+   end type field1DInteger
+
    type,extends(fieldhead) :: field2DInteger
 
       ! Raw array holding field data on this block
-      integer, dimension(:,:), pointer :: array
+      integer, dimension(:,:), pointer :: array=>NULL()
 
    end type field2DInteger
+
+   type,extends(fieldhead) :: field3DInteger
+
+      ! Raw array holding field data on this block
+      integer, dimension(:,:,:), pointer :: array=>NULL()
+
+   end type field3DInteger
+
+   type,extends(fieldhead) :: field4DInteger
+
+      ! Raw array holding field data on this block
+      integer, dimension(:,:,:,:), pointer :: array=>NULL()
+
+   end type field4DInteger
 
    contains
 

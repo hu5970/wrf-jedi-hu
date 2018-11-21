@@ -28,8 +28,6 @@ call wrfjedi_field_registry%get(c_key_self,self)
 
 call ufo_vars_setup(vars, c_vars)
 
-call initial(self, geom, vars)
-
 call create(self, geom, vars)
 
 end subroutine wrfjedi_field_create_c

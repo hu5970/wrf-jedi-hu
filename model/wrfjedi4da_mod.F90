@@ -18,11 +18,13 @@ module wrfjedi4da_mod
    !-----------------------------------------------------------------------
 
 !   use wrfjedi_constants
-   use wrfjedi_derived_types, only: field2DReal,field2DInteger
+   use wrfjedi_derived_types, only: field0DReal,field0DInteger, &
+                                    field1DReal,field1DInteger, &
+                                    field2DReal,field2DInteger, &
+                                    field3DReal,field3DInteger, &
+                                    field4DReal
    use wrfjedi_pool_routines
-!   use wrfjedi_dmpar
-!   use wrfjedi_abort, only : wrfjedi_dmpar_global_abort
-   use wrfjedi_kinds, only : kind_real
+   use wrfjedi_kinds, only : kind_real,RKIND
    use module_domain_type, only: domain,fieldlist
    use module_domain, only :  get_ijk_from_grid
    !use random_vectors_mod
@@ -30,7 +32,8 @@ module wrfjedi4da_mod
    implicit none
    private
 
-   public :: da_make_subpool_wrfjedi
+   public :: da_make_subpool_wrfjedi, &
+             da_check_grid_content_wrfjedi
 
    contains
 
@@ -398,34 +401,106 @@ module wrfjedi4da_mod
 !
    !***********************************************************************
    !
-   !  subroutine da_make_subpool
+   !  subroutine da_check_grid_content_wrfjedi
    !
-   !> \brief   Subset a pool from pools A to B
-   !> \author  Gael Descombes
-   !> \date    26 December 2017
+   !> \brief   list content from wrf grid
+   !> \author  Ming Hu
+   !> \date    20 November 2018
    !> \details
-   !>  Given pool A, create pool B as a subset of the fields in A
+   !>  list content from a wrf grid
    !
    !-----------------------------------------------------------------------
-   subroutine da_make_subpool_wrfjedi(domain_grid, pool_b, nsize, fieldname, nfields)
+   subroutine da_check_grid_content_wrfjedi(domain_grid)
 
       implicit none
 
       type (domain), pointer, intent(in) :: domain_grid
-      type (wrfjedi_pool_type), pointer, intent(out) :: pool_b
+
+      integer :: ii
+      INTEGER ids , ide , jds , jde , kds , kde , &
+            ims , ime , jms , jme , kms , kme , &
+            ips , ipe , jps , jpe , kps , kpe
+      CHARACTER*80  dname, memord
+
+      TYPE( fieldlist ), POINTER :: p
+!
+! get dimension for this domain
+      call get_ijk_from_grid (  domain_grid ,                  &
+                              ids, ide, jds, jde, kds, kde,    &
+                              ims, ime, jms, jme, kms, kme,    &
+                              ips, ipe, jps, jpe, kps, kpe    )
+
+      p => domain_grid%head_statevars%next
+      DO WHILE ( ASSOCIATED( p ) )
+
+        IF ( p%ProcOrient .NE. 'X' .AND. p%ProcOrient .NE. 'Y' ) THEN
+          dname = p%DataName
+          IF (p%Ntl.GT.0)  dname=dname(1:len(TRIM(dname))-2)
+          write(*,'(I4,A5,I5,3A15,A5,A10,A20)') p%Ndim, p%Type, p%Ntl, &
+                      TRIM(p%VarName),trim(p%DataName),trim(dname),&
+                      p%ProcOrient,trim(p%MemoryOrder) !,trim(p%dimname2)
+          if(p%Type == WRFJEDI_POOL_REAL )then
+              if(p%Ndim==1) then
+                 write(*,*) 'MAX/MIN==>',maxval(p%rfield_1d),minval(p%rfield_1d)
+              elseif(p%Ndim==2) then
+                 write(*,*) 'MAX/MIN==>',maxval(p%rfield_2d),minval(p%rfield_2d)
+              elseif(p%Ndim==3) then
+                 write(*,*) 'MAX/MIN==>',maxval(p%rfield_3d),minval(p%rfield_3d)
+              elseif(p%Ndim==4) then
+                 write(*,*) 'MAX/MIN==>',maxval(p%rfield_4d),minval(p%rfield_4d)
+              else
+              endif
+          elseif(p%Type == WRFJEDI_POOL_INTEGER) then
+              if(p%Ndim==1) then
+                 write(*,*) 'MAX/MIN==>',maxval(p%ifield_1d),minval(p%ifield_1d)
+              elseif(p%Ndim==2) then
+                 write(*,*) 'MAX/MIN==>',maxval(p%ifield_2d),minval(p%ifield_2d)
+              elseif(p%Ndim==3) then
+                 write(*,*) 'MAX/MIN==>',maxval(p%ifield_3d),minval(p%ifield_3d)
+              else
+              endif
+          else
+          endif
+        ENDIF
+
+        p => p%next
+      ENDDO   ! p 
+
+   end subroutine da_check_grid_content_wrfjedi
+
+   !***********************************************************************
+   !
+   !  subroutine da_make_subpool_wrfjedi
+   !
+   !> \brief   make a pool from wrf grid
+   !> \author  Ming Hu
+   !> \date    20 November 2018
+   !> \details
+   !>  Given grid A, create pool B as a subset of the fields in A
+   !
+   !-----------------------------------------------------------------------
+   subroutine da_make_subpool_wrfjedi(domain_grid, pool_c, nsize, fieldname, nfields)
+
+      implicit none
+
+      type (domain), pointer, intent(in) :: domain_grid
+      type (wrfjedi_pool_type), pointer, intent(out) :: pool_c
       character (len=*), intent(in) :: fieldname(:)
       integer, intent(out) :: nfields
       integer, intent(in) :: nsize
-      type (wrfjedi_pool_type), pointer :: pool_c
+!      type (wrfjedi_pool_type), pointer :: pool_c
 
       type (wrfjedi_pool_iterator_type) :: poolItr
-!      type (field0DReal), pointer :: field0d
-!      type (field1DReal), pointer :: field1d
+
+      type (field0DReal), pointer :: field0d
+      type (field1DReal), pointer :: field1d
       type (field2DReal), pointer :: field2d 
-!      type (field2DReal), pointer :: field2d, field2d_src, field2d_dst
-!      type (field3DReal), pointer :: field3d
-!      type (field1DInteger), pointer :: ifield1d
-!      integer, pointer :: index_scalar, dim0d
+      type (field3DReal), pointer :: field3d
+      type (field4DReal), pointer :: field4d
+      type (field0DInteger), pointer :: ifield0d
+      type (field1DInteger), pointer :: ifield1d
+      type (field2DInteger), pointer :: ifield2d
+      type (field3DInteger), pointer :: ifield3d
 
       integer :: ii
       INTEGER ids , ide , jds , jde , kds , kde , &
@@ -439,7 +514,7 @@ module wrfjedi4da_mod
       nfields = 0
       write(*,*)'--Create a sub Pool from list of variable: ',nsize
       write(*,*)'--Create a sub Pool from list of variable: ',fieldname
-      call wrfjedi_pool_create_pool(pool_b, nsize)
+!      call wrfjedi_pool_create_pool(pool_b, nsize)
       call wrfjedi_pool_create_pool(pool_c, nsize)
 
 ! get dimension for this domain
@@ -463,31 +538,73 @@ module wrfjedi4da_mod
                 IF      ( p%Type .EQ. 'r' ) THEN
                    IF ( p%Ndim .EQ. 0 ) THEN
                       write(*,*) ' reading 0D real variable ', TRIM(p%VarName)
+                      allocate(field0d)
+                      call wrfjedi_pool_get_gridfield(p, trim(p % DataName), field0d)
+                      call wrfjedi_pool_add_field(pool_c, trim(p % DataName), field0d)
+                      write(*,*) '0D real value: ', field0d % array
+                      deallocate(field0d)
                    ELSE IF ( p%Ndim .EQ. 1 ) THEN
                       write(*,*) ' reading 1D real variable ', TRIM(p%VarName)
+                      allocate(field1d)
+                      call wrfjedi_pool_get_gridfield(p, trim(p % DataName), field1d)
+                      call wrfjedi_pool_add_field(pool_c, trim(p % DataName), field1d)
+                      write(*,*) '1D real MIN/MAX value: ', minval(field1d % array),maxval(field1d % array)
+                      deallocate(field1d)
                    ELSE IF ( p%Ndim .EQ. 2 ) THEN
                       write(*,*) ' reading 2D real variable ', TRIM(p%VarName)
                       allocate(field2d)
                       call wrfjedi_pool_get_gridfield(p, trim(p % DataName), field2d)
-!                      call field2d%printFieldHead()
-!                      write(*,*) '2D real MIN/MAX value: ', minval(field2d % array),maxval(field2d % array)
+                      !call field2d%printFieldHead()
+                      write(*,*) '2D real MIN/MAX value: ', minval(field2d % array),maxval(field2d % array)
                       call wrfjedi_pool_add_field(pool_c, trim(p % DataName), field2d)
                       deallocate(field2d)
                    ELSE IF ( p%Ndim .EQ. 3 ) THEN
                       write(*,*) ' reading 3D real variable ', TRIM(p%VarName)
-!                           call wrfjedi_pool_get_field(pool_a, trim(poolItr % memberName), field3d)
-!                      call wrfjedi_pool_add_field(pool_c, trim(p % DataName), field3d)
-!                      write(0,*) '3D MIN/MAX value: ', minval(field3d % array),maxval(field3d % array)
+                      allocate(field3d)
+                      call wrfjedi_pool_get_gridfield(p, trim(p % DataName), field3d)
+                      call wrfjedi_pool_add_field(pool_c, trim(p % DataName), field3d)
+                      !call field3d%printFieldHead()
+                      write(*,*) '3D real MIN/MAX value: ', minval(field3d % array),maxval(field3d % array)
+                      deallocate(field3d)
                    ELSE IF ( p%Ndim .EQ. 4 ) THEN
                       write(*,*) ' reading 4D real variable ', TRIM(p%VarName)
+                      allocate(field4d)
+                      call wrfjedi_pool_get_gridfield(p, trim(p % DataName), field4d)
+                      call wrfjedi_pool_add_field(pool_c, trim(p % DataName), field4d)
+                      deallocate(field4d)
                    ENDIF
                 ELSE IF ( p%Type .EQ. 'd' ) THEN
                    write(*,*) ' reading double variable ', TRIM(p%VarName)
                    write(*,*) ' We do not have function to read double !'
                 ELSE IF ( p%Type .EQ. 'i' ) THEN
-                   write(*,*) ' reading integer variable ', TRIM(p%VarName)
+                   IF ( p%Ndim .EQ. 0 ) THEN
+                      write(*,*) ' reading 0D integer variable ', TRIM(p%VarName)
+                      allocate(ifield0d)
+                      call wrfjedi_pool_get_gridfield(p, trim(p % DataName), ifield0d)
+                      call wrfjedi_pool_add_field(pool_c, trim(p % DataName), ifield0d)
+                      deallocate(ifield0d)
+                   ELSE IF ( p%Ndim .EQ. 1 ) THEN
+                      write(*,*) ' reading 1D integer variable ', TRIM(p%VarName)
+                      allocate(ifield1d)
+                      call wrfjedi_pool_get_gridfield(p, trim(p % DataName), ifield1d)
+                      call wrfjedi_pool_add_field(pool_c, trim(p % DataName), ifield1d)
+                      deallocate(ifield1d)
+                   ELSE IF ( p%Ndim .EQ. 2 ) THEN
+                      write(*,*) ' reading 2D integer variable ', TRIM(p%VarName)
+                      allocate(ifield2d)
+                      call wrfjedi_pool_get_gridfield(p, trim(p % DataName), ifield2d)
+                      call wrfjedi_pool_add_field(pool_c, trim(p % DataName), ifield2d)
+                      deallocate(ifield2d)
+                   ELSE IF ( p%Ndim .EQ. 3 ) THEN
+                      write(*,*) ' reading 3D integer variable ', TRIM(p%VarName)
+                      allocate(ifield3d)
+                      call wrfjedi_pool_get_gridfield(p, trim(p % DataName), ifield3d)
+                      call wrfjedi_pool_add_field(pool_c, trim(p % DataName), ifield3d)
+                      deallocate(ifield3d)
+                   END IF
                 ELSE IF ( p%Type .EQ. 'l' ) THEN
                    write(*,*) ' reading logical variable ', TRIM(p%VarName)
+                   write(*,*) ' We do not have function to read logical !'
                 ENDIF
                 nfields = nfields + 1
              endif   !  trim(fieldname(ii)).eq.(trim(p % DataName))
@@ -498,129 +615,18 @@ module wrfjedi4da_mod
         p => p%next
       ENDDO   ! p 
 
-      call wrfjedi_pool_clone_pool(pool_c, pool_b)
-!      call wrfjedi_pool_empty_pool(pool_c)
-      call wrfjedi_pool_destroy_pool(pool_c)
-!      call pool_print_members(pool_b)
 
-!      call wrfjedi_pool_create_pool(pool_b, nsize)
-!      call wrfjedi_pool_create_pool(pool_c, nsize)
-!      !write(0,*)'Fieldname: ',nsize,fieldname(:)
-!      !
-!      ! Iterate over all fields in pool_b, adding them to fields of the same
-!      ! name in pool_a
-!      call wrfjedi_pool_begin_iteration(pool_a)
-!      write(0,*)'Before iterating'
-!         
-! 
-!      do while ( wrfjedi_pool_get_next_member(pool_a, poolItr) )
-!         ! Pools may in general contain dimensions, namelist options, fields, or other pools,
-!         ! so we select only those members of the pool that are fields
-!         if (poolItr % memberType == WRFJEDI_POOL_FIELD) then
-!            ! Fields can be integer, logical, or real. Here, we operate only on real-valued fields
-!            if (poolItr % dataType == WRFJEDI_POOL_REAL) then
-!              do ii=1, nsize
-!                  if ( trim(fieldname(ii)).eq.(trim(poolItr % memberName)) ) then
-!                     write(0,*)'Adding field in the pool da_make_subpool: '//trim(fieldname(ii))
-!                     ! Depending on the dimensionality of the field, we need to set pointers of
-!                     ! the correct type
-!                     if (poolItr % nDims == 0) then
-!                        call wrfjedi_pool_get_field(pool_a, trim(poolItr % memberName), field0d)
-!                        call wrfjedi_pool_add_field(pool_c, trim(poolItr % memberName), field0d)
-!                     else if (poolItr % nDims == 1) then
-!                        call wrfjedi_pool_get_field(pool_a, trim(poolItr % memberName), field1d)
-!                        call wrfjedi_pool_add_field(pool_c, trim(poolItr % memberName), field1d)
-!                        write(0,*) '1D MIN/MAX value: ', minval(field1d % array),maxval(field1d % array)
-!                     else if (poolItr % nDims == 2) then
-!                        call wrfjedi_pool_get_field(pool_a, trim(poolItr % memberName), field2d)
-!                        call wrfjedi_pool_add_field(pool_c, trim(poolItr % memberName), field2d)
-!                        write(0,*) '2D MIN/MAX value: ', minval(field2d % array),maxval(field2d % array)
-!                     else if (poolItr % nDims == 3) then
-!                        call wrfjedi_pool_get_field(pool_a, trim(poolItr % memberName), field3d)
-!                        call wrfjedi_pool_add_field(pool_c, trim(poolItr % memberName), field3d)
-!                        write(0,*) '3D MIN/MAX value: ', minval(field3d % array),maxval(field3d % array)
-!                     end if
-!                     nfields = nfields + 1
-!                  
-!                  else if ( trim(poolItr % memberName).eq.'scalars' ) then
-!                     write(0,*)'Scalars pool case'
-!                     if ( trim(fieldname(ii)).eq.'index_qv' .or. &
-!                          trim(fieldname(ii)).eq.'index_qc' .or. &
-!                          trim(fieldname(ii)).eq.'index_qi' .or. &
-!                          trim(fieldname(ii)).eq.'index_qr' .or. &
-!                          trim(fieldname(ii)).eq.'index_qs' ) then
-!                        call wrfjedi_pool_get_dimension(state, trim(fieldname(ii)), index_scalar)
-!                        if (index_scalar .gt. 0) then
-!                           call wrfjedi_pool_get_field(pool_a, trim(poolItr % memberName), field3d)
-!                           call wrfjedi_pool_get_field(pool_a, 'theta_m', field2d_src)
-!                           call wrfjedi_duplicate_field(field2d_src, field2d_dst)
-!                           field2d_dst % fieldName = trim(fieldname(ii))
-!                           field2d_dst % array(:,:) = field3d % array(index_scalar,:,:)
-!                           write(0,*) '2D MIN/MAX value: ', minval(field2d_dst % array),minval(field2d_dst % array)
-!                           write(0,*) '2D MIN/MAX value: ', minval(field3d % array(index_scalar,:,:)), &
-!                                          maxval(field3d % array(index_scalar,:,:))
-!                           call wrfjedi_pool_add_field(pool_c, trim(fieldname(ii)), field2d_dst)
-!                           nfields = nfields + 1
-!                        else
-!                           write(0,*)'WARNING in da_make_subpool; ',trim(fieldname(ii)), &
-!                                     'not available from WRFJEDI'
-!                        end if
-!                     end if
-!
-!                  end if
-!              end do
-!            end if
-!            if (poolItr % dataType == WRFJEDI_POOL_INTEGER) then
-!              do ii=1, nsize
-!                  if ( trim(fieldname(ii)).eq.(trim(poolItr % memberName)) ) then
-!                     write(0,*)'Adding field in the pool da_make_subpool: '//trim(fieldname(ii))
-!                     ! Depending on the dimensionality of the field, we need to set pointers of
-!                     ! the correct type
-!                     if (poolItr % nDims == 1) then
-!                        call wrfjedi_pool_get_field(pool_a, trim(poolItr % memberName), ifield1d)
-!                        call wrfjedi_pool_add_field(pool_c, trim(poolItr % memberName), ifield1d)
-!                        write(0,*) '1D MIN/MAX value: ', minval(ifield1d % array),maxval(ifield1d % array)
-!                        nfields = nfields + 1
-!                     end if
-!                  end if
-!              end do
-!            end if
-!          end if
-!      end do
-!
-!      call wrfjedi_pool_get_dimension(domain % blocklist % dimensions, 'nCellsSolve', dim0d)
-!      write(0,*)'Adding dimension nCellsSolve: ',dim0d
-!      call wrfjedi_pool_add_dimension(pool_c, 'nCellsSolve', dim0d)
-!      call wrfjedi_pool_get_dimension(domain % blocklist % dimensions, 'nEdgesSolve', dim0d)
-!      write(0,*)'Adding dimension nEdgesSolve: ',dim0d
-!      call wrfjedi_pool_add_dimension(pool_c, 'nEdgesSolve', dim0d)
-!      call wrfjedi_pool_get_dimension(domain % blocklist % dimensions, 'nVerticesSolve', dim0d)
-!      write(0,*)'Adding dimension nVerticesSolve: ',dim0d
-!      call wrfjedi_pool_add_dimension(pool_c, 'nVerticesSolve', dim0d)
-!      call wrfjedi_pool_get_dimension(domain % blocklist % dimensions, 'nVertLevels', dim0d)
-!      write(0,*)'Adding dimension nVertLevels: ',dim0d
-!      call wrfjedi_pool_add_dimension(pool_c, 'nVertLevels', dim0d)
-!
-!      call wrfjedi_pool_get_dimension(domain % blocklist % dimensions, 'nCells', dim0d)
-!      call wrfjedi_pool_add_dimension(pool_c, 'nCells', dim0d)
-!      call wrfjedi_pool_get_dimension(domain % blocklist % dimensions, 'nEdges', dim0d)
-!      call wrfjedi_pool_add_dimension(pool_c, 'nEdges', dim0d)
-!      call wrfjedi_pool_get_dimension(domain % blocklist % dimensions, 'nVertices', dim0d)
-!      call wrfjedi_pool_add_dimension(pool_c, 'nVertices', dim0d)
-!      call wrfjedi_pool_get_dimension(domain % blocklist % dimensions, 'vertexDegree', dim0d)
-!      call wrfjedi_pool_add_dimension(pool_c, 'vertexDegree', dim0d)
-!
-!
-!      if ( nsize.ne.nfields ) then
-!        write(0,*)'Missing field in the pool da_make_subpool nsize different: ',nsize,nfields
-!      end if
-!
-!
-!      write(0,*)'da_make_subpool new Pool size ',Pool_c % size
+!      call pool_print_members(pool_c, 'pool_c')
 !      call wrfjedi_pool_clone_pool(pool_c, pool_b)
 !      call wrfjedi_pool_empty_pool(pool_c)
+!      call pool_print_members(pool_b, 'pool_b')
 !      call wrfjedi_pool_destroy_pool(pool_c)
+!      call wrfjedi_pool_destroy_pool(pool_b,.true.)
 
+      if ( nsize.ne.nfields ) then
+        write(*,*)'Missing field in the pool da_make_subpool nsize different: ',nsize,nfields
+      end if
+!
    end subroutine da_make_subpool_wrfjedi
 !
 !   
@@ -965,64 +971,84 @@ module wrfjedi4da_mod
 !   end subroutine da_self_mult
 !
 !   
-!   !***********************************************************************
-!   !
-!   !  subroutine da_zeros
-!   !
-!   !> \brief   Performs A = 0. for pool A
-!   !> \author  Gael Descombes
-!   !> \date    22 December 2017
-!   !> \details
-!   !
-!   !-----------------------------------------------------------------------
-!   subroutine da_zeros(pool_a)
-!
-!      implicit none
-!
-!      type (wrfjedi_pool_type), pointer :: pool_a
-!
-!      type (wrfjedi_pool_iterator_type) :: poolItr
-!      real (kind=kind_real), pointer :: r0d_ptr_a
-!      real (kind=kind_real), dimension(:), pointer :: r1d_ptr_a
-!      real (kind=kind_real), dimension(:,:), pointer :: r2d_ptr_a
-!      real (kind=kind_real), dimension(:,:,:), pointer :: r3d_ptr_a
-!
-!      !
-!      ! Iterate over all fields in pool_b, adding them to fields of the same
-!      ! name in pool_a
-!      !
-!      call wrfjedi_pool_begin_iteration(pool_a)
-!
-!      do while ( wrfjedi_pool_get_next_member(pool_a, poolItr) )
-!
-!         ! Pools may in general contain dimensions, namelist options, fields, or other pools,
-!         ! so we select only those members of the pool that are fields
-!         if (poolItr % memberType == WRFJEDI_POOL_FIELD) then
-!
-!            ! Fields can be integer, logical, or real. Here, we operate only on real-valued fields
-!            if (poolItr % dataType == WRFJEDI_POOL_REAL) then
-!
-!               ! Depending on the dimensionality of the field, we need to set pointers of
-!               ! the correct type
-!               if (poolItr % nDims == 0) then
-!                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r0d_ptr_a)
-!                  r0d_ptr_a = 0.0_kind_real
-!               else if (poolItr % nDims == 1) then
-!                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r1d_ptr_a)
-!                  r1d_ptr_a = 0.0_kind_real
-!               else if (poolItr % nDims == 2) then
-!                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r2d_ptr_a)
-!                  r2d_ptr_a = 0.0_kind_real
-!               else if (poolItr % nDims == 3) then
-!                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r3d_ptr_a)
-!                  r3d_ptr_a = 0.0_kind_real
-!               end if
-!
-!            end if
-!         end if
-!      end do
-!
-!   end subroutine da_zeros
+   !***********************************************************************
+   !
+   !  subroutine da_zeros
+   !
+   !> \brief   Performs A = 0. for pool A
+   !> \author  Gael Descombes
+   !> \date    22 December 2017
+   !> \details
+   !
+   !-----------------------------------------------------------------------
+   subroutine da_zeros(pool_a)
+
+      implicit none
+
+      type (wrfjedi_pool_type), pointer :: pool_a
+
+      type (wrfjedi_pool_iterator_type) :: poolItr
+      real (kind=RKIND), pointer :: r0d_ptr_a
+      real (kind=RKIND), dimension(:), pointer :: r1d_ptr_a
+      real (kind=RKIND), dimension(:,:), pointer :: r2d_ptr_a
+      real (kind=RKIND), dimension(:,:,:), pointer :: r3d_ptr_a
+
+      integer, pointer :: i0d_ptr_a
+      integer, dimension(:), pointer :: i1d_ptr_a
+      integer, dimension(:,:), pointer :: i2d_ptr_a
+      integer, dimension(:,:,:), pointer :: i3d_ptr_a
+
+      !
+      ! Iterate over all fields in pool_b, adding them to fields of the same
+      ! name in pool_a
+      !
+      call wrfjedi_pool_begin_iteration(pool_a)
+
+      do while ( wrfjedi_pool_get_next_member(pool_a, poolItr) )
+
+         ! Pools may in general contain dimensions, namelist options, fields, or other pools,
+         ! so we select only those members of the pool that are fields
+         if (poolItr % memberType == WRFJEDI_POOL_FIELD) then
+
+            ! Fields can be integer, logical, or real. Here, we operate only on real-valued fields
+            if (poolItr % dataType == WRFJEDI_POOL_REAL) then
+
+               ! Depending on the dimensionality of the field, we need to set pointers of
+               ! the correct type
+               if (poolItr % nDims == 0) then
+                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r0d_ptr_a)
+                  r0d_ptr_a = 0.0_kind_real
+               else if (poolItr % nDims == 1) then
+                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r1d_ptr_a)
+                  r1d_ptr_a = 0.0_kind_real
+               else if (poolItr % nDims == 2) then
+                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r2d_ptr_a)
+                  r2d_ptr_a = 0.0_kind_real
+               else if (poolItr % nDims == 3) then
+                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r3d_ptr_a)
+                  r3d_ptr_a = 0.0_kind_real
+               end if
+
+            end if
+            if (poolItr % dataType == WRFJEDI_POOL_INTEGER) then
+               if (poolItr % nDims == 0) then
+                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), i0d_ptr_a)
+                  i0d_ptr_a = 0
+               else if (poolItr % nDims == 1) then
+                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), i1d_ptr_a)
+                  i1d_ptr_a = 0
+               else if (poolItr % nDims == 2) then
+                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), i2d_ptr_a)
+                  i2d_ptr_a = 0
+               else if (poolItr % nDims == 3) then
+                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), i3d_ptr_a)
+                  i3d_ptr_a = 0
+               end if
+            endif
+         end if
+      end do
+
+   end subroutine da_zeros
 !
 !   !***********************************************************************
 !   !
