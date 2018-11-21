@@ -4035,10 +4035,12 @@ module wrfjedi_pool_routines
       type (field0DReal), pointer :: field
 
 
+      allocate(field)
       call wrfjedi_pool_get_field_0d_real(inPool, key, field, timeLevel)
 
       nullify(scalar)
       if (associated(field)) scalar => field % array
+      deallocate(field)
 
    end subroutine wrfjedi_pool_get_array_0d_real!}}}
 !
@@ -4065,10 +4067,12 @@ module wrfjedi_pool_routines
       type (field1DReal), pointer :: field
 
 
+      allocate(field)
       call wrfjedi_pool_get_field_1d_real(inPool, key, field, timeLevel)
 
       nullify(array)
       if (associated(field)) array => field % array
+      deallocate(field)
 
    end subroutine wrfjedi_pool_get_array_1d_real!}}}
 
@@ -4095,10 +4099,12 @@ module wrfjedi_pool_routines
       type (field2DReal), pointer :: field
 
 
+      allocate(field)
       call wrfjedi_pool_get_field_2d_real(inPool, key, field, timeLevel)
 
       nullify(array)
       if (associated(field)) array => field % array
+      deallocate(field)
 
    end subroutine wrfjedi_pool_get_array_2d_real!}}}
 !
@@ -4125,10 +4131,13 @@ module wrfjedi_pool_routines
       type (field3DReal), pointer :: field
 
 
+      allocate(field)
       call wrfjedi_pool_get_field_3d_real(inPool, key, field, timeLevel)
 
       nullify(array)
       if (associated(field)) array => field % array
+!      call field%printFieldHead()
+      deallocate(field)
 
    end subroutine wrfjedi_pool_get_array_3d_real!}}}
 !
@@ -4155,10 +4164,12 @@ module wrfjedi_pool_routines
       type (field4DReal), pointer :: field
 
 
+      allocate(field)
       call wrfjedi_pool_get_field_4d_real(inPool, key, field, timeLevel)
 
       nullify(array)
       if (associated(field)) array => field % array
+      deallocate(field)
 
    end subroutine wrfjedi_pool_get_array_4d_real!}}}
 
@@ -4215,10 +4226,12 @@ module wrfjedi_pool_routines
       type (field0DInteger), pointer :: field
 
 
+      allocate(field)
       call wrfjedi_pool_get_field_0d_int(inPool, key, field, timeLevel)
 
       nullify(scalar)
       if (associated(field)) scalar => field % array
+      deallocate(field)
 
    end subroutine wrfjedi_pool_get_array_0d_int!}}}
 
@@ -4245,10 +4258,12 @@ module wrfjedi_pool_routines
       type (field1DInteger), pointer :: field
 
 
+      allocate(field)
       call wrfjedi_pool_get_field_1d_int(inPool, key, field, timeLevel)
 
       nullify(array)
       if (associated(field)) array => field % array
+      deallocate(field)
 
    end subroutine wrfjedi_pool_get_array_1d_int!}}}
 
@@ -4275,10 +4290,12 @@ module wrfjedi_pool_routines
       type (field2DInteger), pointer :: field
 
 
+      allocate(field)
       call wrfjedi_pool_get_field_2d_int(inPool, key, field, timeLevel)
 
       nullify(array)
       if (associated(field)) array => field % array
+      deallocate(field)
 
    end subroutine wrfjedi_pool_get_array_2d_int!}}}
 
@@ -4305,10 +4322,12 @@ module wrfjedi_pool_routines
       type (field3DInteger), pointer :: field
 
 
+      allocate(field)
       call wrfjedi_pool_get_field_3d_int(inPool, key, field, timeLevel)
 
       nullify(array)
       if (associated(field)) array => field % array
+      deallocate(field)
 
    end subroutine wrfjedi_pool_get_array_3d_int!}}}
 
@@ -5801,6 +5820,7 @@ module wrfjedi_pool_routines
                    call wrfjedi_pool_get_field(pool, trim(poolItr % memberName), field0d)
                    write(*,*) 'pool_print_members===>  0D real value: ', &
                                   field0d % array
+                   call field0d%printFieldHead()
                    deallocate(field0d)
                else if (poolItr % nDims == 1) then
                    allocate(field1d)
@@ -5854,7 +5874,7 @@ module wrfjedi_pool_routines
                    call ifield1d%printFieldHead()
                    deallocate(ifield1d)
                else if (poolItr % nDims == 2) then
-                   allocate(ifield3d)
+                   allocate(ifield2d)
                    call wrfjedi_pool_get_field(pool, trim(poolItr % memberName), ifield2d)
                    write(*,*) 'pool_print_members===>  2D integer  MIN/MAX value: ', &
                                   minval(ifield2d % array),maxval(ifield2d % array)

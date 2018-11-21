@@ -20,12 +20,14 @@ use wrfjedi_pool_routines, only : wrfjedi_pool_type, &
                                   wrfjedi_pool_add_field, &
                                   wrfjedi_pool_get_field, &
                                   wrfjedi_pool_get_array
+use wrfjedi_pool_routines, only : wrfjedi_pool_destroy_pool
 use wrfjedi_pool_routines, only : pool_print_members
 use wrfjedi_pool_routines, only : wrfjedi_pool_clone_pool, &
                                   wrfjedi_pool_create_pool
 
-use wrfjedi4da_mod, only : da_make_subpool_wrfjedi,      &
-                           da_check_grid_content_wrfjedi
+use wrfjedi4da_mod, only : da_make_subpool_wrfjedi,       &
+                           da_check_grid_content_wrfjedi, &
+                           da_zeros
 
 !use wrfjedi_dmpar
 !use wrfjedi_derived_types
@@ -44,7 +46,7 @@ use wrfjedi4da_mod, only : da_make_subpool_wrfjedi,      &
 implicit none
 private
 
-public :: wrfjedi_field, initial, &
+public :: wrfjedi_field, &
         & create, delete, zeros, random, copy, &
         & self_add, self_schur, self_sub, self_mul, axpy, &
         & dot_prod, add_incr, diff_incr, &
@@ -57,10 +59,6 @@ public :: wrfjedi_field_registry
 ! ------------------------------------------------------------------------------
 
 !> Fortran derived type to hold WRF fields
-!type :: wrfjedi_pool_type
-!  integer :: nf ! how many varaibles to be analyzed
-!! need to define this
-!end type wrfjedi_pool_type
 
 type :: wrfjedi_field
   type (wrfjedi_geom), pointer :: geom              ! grid and MPI infos
@@ -123,109 +121,36 @@ subroutine create(self, geom, vars)
 !    call da_check_grid_content_wrfjedi(self % geom % wrfjedi_head_grid)
 !    call abor1_ftn("wrfjedi_fields: debug stop point")
 
-    write(*,*)'-- Create a sub Pool from list of variable ',self % nf
-    call da_make_subpool_wrfjedi(self % geom % wrfjedi_head_grid, self % subFieldsBk, self % nf, self % fldnames, nfields)
+    write(*,*)'-- Create a Pool from list of variable ',self % nf
+    call da_make_subpool_wrfjedi(self % geom % wrfjedi_head_grid, self % subFieldsBk,&
+                                  self % nf, self % fldnames, nfields)
     if ( self % nf .ne. nfields  ) then
        call abor1_ftn("wrfjedi_fields:create: dimension mismatch ", self % nf, nfields)
     end  if
-    call pool_print_members(self % subFieldsBk, 'subFieldsBk')
+!    
+!    call pool_print_members(self % subFieldsBk, 'subFieldsBk')
 
     call wrfjedi_pool_create_pool(self % subFields, nfields)
     call wrfjedi_pool_clone_pool(self % subFieldsBk, self % subFields)
-    call pool_print_members(self % subFields, 'subFields')
+!    call pool_print_members(self % subFields, 'subFields')
+    call zeros(self) !-- set zero for self % subFields
+!    call pool_print_members(self % subFields, 'subFields')
 
     !--- TODO: aux test: BJJ  !- get this from json ???
     allocate(fldnames_aux(nf_aux))
-    fldnames_aux = [ character(len=22) :: "P_TOP","ZNU","ZNW","XLAT","XLONG","PH0","PHP",&
+    fldnames_aux = [ character(len=22) :: "P_TOP","ZNU","ZNW","XLAT","XLONG","LOWLYR","PHP",&
                                           "MUB","Q2","T2","U10","V10" ]
     write(*,*)'-- Create a sub Pool for auxFields'
-    call da_make_subpool_wrfjedi(self % geom % wrfjedi_head_grid, self % auxFields, nf_aux, fldnames_aux, nfields)
+    call da_make_subpool_wrfjedi(self % geom % wrfjedi_head_grid, self % auxFields,&
+                                  nf_aux, fldnames_aux, nfields)
     deallocate(fldnames_aux)
     if ( nf_aux .ne. nfields  ) then
        call abor1_ftn("wrfjedi_fields:create: dimension mismatch ",nf_aux, nfields)
     end  if
-    call pool_print_members(self % auxFields, 'auxFields')
+!    call pool_print_members(self % auxFields, 'auxFields')
 
 !    call abor1_ftn("wrfjedi_fields: debug stop point")
 end subroutine create
-
-subroutine initial(self, geom, vars)
-
-!    use wrfjedi_kind_types
-
-    implicit none
-
-    type(wrfjedi_field), intent(inout)       :: self
-    type(wrfjedi_geom),  intent(in), pointer :: geom
-    type(ufo_vars),   intent(in)          :: vars
-
-    integer :: nsize, nfields
-    integer :: ierr!, ii
-
-    character(len=22), allocatable  :: fldnames_aux(:)
-
-    !-- fortran level test (temporally sit here)
-    real(kind=kind_real), allocatable :: pstat(:, :)
-    real(kind=kind_real)              :: prms
-!    type (MPAS_Time_type) :: local_time, write_time, fld_time
-!    character (len=StrKIND) :: dateTimeString, dateTimeString2, streamID, time_string, filename
-!    character (len=StrKIND) :: dateTimeString_oops
-
-!   real (kind=kind_real), dimension(:,:), pointer :: r2d_ptr_a
-!   type (field2DReal), pointer :: field2d, field2d_src
-
-    ! from the namelist
-!    self % nf =  vars % nv
-!    allocate(self % fldnames(self % nf))
-!    self % fldnames(:) = vars % fldnames(:)
-!    write(*,*)'self % nf =',self % nf
-!    write(*,*)'allocate ::',self % fldnames(:)
-   
-    ! link geom
-    if (associated(geom)) then
-      self % geom => geom
-    else
-      write(*,*)'wrfjedi_fields: geom not associated'
-      call abor1_ftn("wrfjedi_fields: geom not associated")
-    end if
-
-!    write(0,*)'-- Create a sub Pool from list of variable ',self % nf
-!    call da_make_subpool(self % geom % domain, self % subFields, self % nf, self % fldnames, nfields)
-
-!    if ( self % nf .ne. nfields  ) then
-!       call abor1_ftn("wrfjedi_fields:create: dimension mismatch ",self % nf, nfields)
-!    end  if
-
-    !--- TODO: aux test: BJJ  !- get this from json ???
-!    allocate(fldnames_aux(nf_aux))
-!    fldnames_aux = [ character(len=22) :: "theta", "rho", "u", &
-!                                          "landmask", "xice", "snowc", "skintemp", "ivgtyp", "isltyp", &
-!                                          "snowh", "vegfra", "u10", "v10", "lai", "smois", "tslb", "w", &
-!                                          "index_qc", "index_qi", "re_cloud", "re_ice" ]
-!                                          !BJJ- "w" is for dimension information of var_prsi
-!    write(0,*)'-- Create a sub Pool for auxFields'
-!    call da_make_subpool(self % geom % domain, self % auxFields, nf_aux, fldnames_aux, nfields)
-!    deallocate(fldnames_aux)
-!    if ( nf_aux .ne. nfields  ) then
-!       call abor1_ftn("wrfjedi_fields:create: dimension mismatch ",nf_aux, nfields)
-!    end  if
-!
-!    ! clock creation
-!    allocate(self % clock)
-!    call atm_simulation_clock_init(self % clock, self % geom % domain % blocklist % configs, ierr)
-!    if ( ierr .ne. 0 ) then
-!       call abor1_ftn("wrfjedi_fields: atm_simulation_clock_init problem")
-!    end if
-
-    !-------------------------------------------------------------
-    ! Few temporary tests
-    !-------------------------------------------------------------
-
-     call zeros(self) !-- set zero for self % subFields
-
-    return
-
-end subroutine initial
 
 ! ------------------------------------------------------------------------------
 
@@ -238,17 +163,15 @@ subroutine delete(self)
    if (allocated(self % fldnames)) deallocate(self % fldnames)
    if (associated(self % subFields)) then
       write(*,*)'--> deallocate subFields Pool'
+!      call wrfjedi_pool_empty_pool(self % subFieldsBk)
+      call wrfjedi_pool_destroy_pool(self % subFieldsBk)
 !      call wrfjedi_pool_empty_pool(self % subFields)
-!      call wrfjedi_pool_destroy_pool(self % subFields)
+      call wrfjedi_pool_destroy_pool(self % subFields)
    end if
    if (associated(self % auxFields)) then
       write(*,*)'--> deallocate auxFields Pool'
 !      call wrfjedi_pool_empty_pool(self % auxFields)
-!      call wrfjedi_pool_destroy_pool(self % auxFields)
-   end if
-!   call wrfjedi_destroy_clock(self % clock, ierr)
-   if ( ierr .ne. 0  ) then
-      write(*,*)'wrfjedi_fields deallocate clock failed'
+      call wrfjedi_pool_destroy_pool(self % auxFields)
    end if
    write(*,*)'--> wrfjedi_fields done deallocate'
 
@@ -263,7 +186,7 @@ subroutine zeros(self)
    implicit none
    type(wrfjedi_field), intent(inout) :: self
 
-!   call da_zeros(self % subFields)
+   call da_zeros(self % subFields)
 
 end subroutine zeros
 

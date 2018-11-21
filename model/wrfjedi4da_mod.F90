@@ -33,7 +33,8 @@ module wrfjedi4da_mod
    private
 
    public :: da_make_subpool_wrfjedi, &
-             da_check_grid_content_wrfjedi
+             da_check_grid_content_wrfjedi, &
+             da_zeros
 
    contains
 
@@ -594,6 +595,7 @@ module wrfjedi4da_mod
                       allocate(ifield2d)
                       call wrfjedi_pool_get_gridfield(p, trim(p % DataName), ifield2d)
                       call wrfjedi_pool_add_field(pool_c, trim(p % DataName), ifield2d)
+                      write(*,*) '2D integer MIN/MAX value: ', minval(ifield2d % array),maxval(ifield2d % array)
                       deallocate(ifield2d)
                    ELSE IF ( p%Ndim .EQ. 3 ) THEN
                       write(*,*) ' reading 3D integer variable ', TRIM(p%VarName)
@@ -992,6 +994,7 @@ module wrfjedi4da_mod
       real (kind=RKIND), dimension(:), pointer :: r1d_ptr_a
       real (kind=RKIND), dimension(:,:), pointer :: r2d_ptr_a
       real (kind=RKIND), dimension(:,:,:), pointer :: r3d_ptr_a
+      real (kind=RKIND), dimension(:,:,:,:), pointer :: r4d_ptr_a
 
       integer, pointer :: i0d_ptr_a
       integer, dimension(:), pointer :: i1d_ptr_a
@@ -1027,6 +1030,9 @@ module wrfjedi4da_mod
                else if (poolItr % nDims == 3) then
                   call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r3d_ptr_a)
                   r3d_ptr_a = 0.0_kind_real
+               else if (poolItr % nDims == 4) then
+                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r4d_ptr_a)
+                  r4d_ptr_a = 0.0_kind_real
                end if
 
             end if
