@@ -14,14 +14,14 @@ use wrfjedi_fields_mod
 use wrfjedi_trajectories
 
 use datetime_mod
-!use wrfjedi_derived_types
+use wrfjedi_derived_types
 !use wrfjedi_framework
 !use wrfjedi_kind_types
 !use wrfjedi_subdriver
 !use atm_core
 !use wrfjedi_stream_manager
 !use mpas4da_mod
-use wrfjedi_kinds, only : kind_real
+use wrfjedi_kinds, only : kind_real,StrKIND,RKIND
 !use wrfjedi_constants, only : rgas, cp
 
 implicit none

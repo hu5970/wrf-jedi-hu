@@ -6065,6 +6065,26 @@ module wrfjedi_pool_routines
 
    end subroutine wrfjedi_nullify_fieldlist
 !
+   function wrfjedi_compare_fieldlist(fieldA,fieldB)
+   
+      logical :: wrfjedi_compare_fieldlist
+      type (fieldlist), intent(in), pointer :: fieldA,fieldB
 
+      integer :: iCountDiff
+      logical :: lSameDim
+
+      iCountDiff=0
+      lSameDim=.false.
+
+!      if(fieldA% /= fieldB%) iCountDiff = iCountDiff + 1
+      wrfjedi_compare_fieldlist=lSameDim
+
+   end function wrfjedi_compare_fieldlist
+
+   subroutine wrfjedi_getdimension_fieldlist(infield)
+
+      type (fieldlist), intent(in), pointer :: infield
+
+   end subroutine wrfjedi_getdimension_fieldlist 
 !
 end module wrfjedi_pool_routines

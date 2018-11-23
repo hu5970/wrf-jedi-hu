@@ -210,15 +210,17 @@ double FieldsWRFJEDI::norm() const {
 }
 // -----------------------------------------------------------------------------
 void FieldsWRFJEDI::print(std::ostream & os) const {
-// TODO: implement this
-//  wrfjedi_field_sizes_f90(keyFlds_, nx, ny, nf, nb);
+
   int nx = 1;
   int ny = 1;
+  int nz = 1;
   int nf = 5;
-  int nb = 1;
-  os << std::endl << "  Resolution = " << nx << ", " << ny
-     << ", Fields = " << nf << ", " << nb;
-  nf += nb;
+
+  wrfjedi_field_sizes_f90(keyFlds_, nx, ny, nz, nf);
+
+  os << std::endl << "  Resolution = " << nx << ", " << ny << ", " << nz
+     << ", Fields = " << nf;
+//  nf += nb;
   std::vector<double> zstat(3*nf);
   wrfjedi_field_gpnorm_f90(keyFlds_, nf, zstat[0]);
   for (int jj = 0; jj < nf; ++jj) {

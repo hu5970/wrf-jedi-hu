@@ -34,7 +34,8 @@ module wrfjedi4da_mod
 
    public :: da_make_subpool_wrfjedi, &
              da_check_grid_content_wrfjedi, &
-             da_zeros
+             da_zeros,da_self_mult,da_random,da_fldrms,&
+             da_dot_product,da_operator,da_axpy,da_gpnorm
 
    contains
 
@@ -133,273 +134,154 @@ module wrfjedi4da_mod
 !
 !   end subroutine wrfjedi_pool_demo
 !
-!   !***********************************************************************
-!   !
-!   !  subroutine da_operator_addition
-!   !
-!   !> \brief   Performs A = A + B for pools A and B
-!   !> \author  Michael Duda
-!   !> \date    20 December 2017
-!   !> \details
-!   !>  Given two pools, A and B, where the fields in B are a subset of
-!   !>  the fields in A, this routine adds the fields in B to fields in A
-!   !>  with the same name. When A and B contain identical fields, this
-!   !>  is equivalent to A = A + B.
-!   !
-!   !-----------------------------------------------------------------------
-!   subroutine da_operator_addition(pool_a, pool_b)
-!
-!      implicit none
-!
-!      type (wrfjedi_pool_type), pointer :: pool_a, pool_b
-!
-!      type (wrfjedi_pool_iterator_type) :: poolItr
-!      real (kind=kind_real), pointer :: r0d_ptr_a, r0d_ptr_b
-!      real (kind=kind_real), dimension(:), pointer :: r1d_ptr_a, r1d_ptr_b
-!      real (kind=kind_real), dimension(:,:), pointer :: r2d_ptr_a, r2d_ptr_b
-!      real (kind=kind_real), dimension(:,:,:), pointer :: r3d_ptr_a, r3d_ptr_b
-!
-!      !
-!      ! Iterate over all fields in pool_b, adding them to fields of the same
-!      ! name in pool_a
-!      !
-!      call wrfjedi_pool_begin_iteration(pool_b)
-!
-!      do while ( wrfjedi_pool_get_next_member(pool_b, poolItr) )
-!
-!         ! Pools may in general contain dimensions, namelist options, fields, or other pools,
-!         ! so we select only those members of the pool that are fields
-!         if (poolItr % memberType == WRFJEDI_POOL_FIELD) then
-!
-!            ! Fields can be integer, logical, or real. Here, we operate only on real-valued fields
-!            if (poolItr % dataType == WRFJEDI_POOL_REAL) then
-!
-!               ! Depending on the dimensionality of the field, we need to set pointers of
-!               ! the correct type
-!               if (poolItr % nDims == 0) then
-!                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r0d_ptr_a)
-!                  call wrfjedi_pool_get_array(pool_b, trim(poolItr % memberName), r0d_ptr_b)
-!                  r0d_ptr_a = r0d_ptr_a + r0d_ptr_b
-!               else if (poolItr % nDims == 1) then
-!                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r1d_ptr_a)
-!                  call wrfjedi_pool_get_array(pool_b, trim(poolItr % memberName), r1d_ptr_b)
-!                  r1d_ptr_a = r1d_ptr_a + r1d_ptr_b
-!               else if (poolItr % nDims == 2) then
-!                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r2d_ptr_a)
-!                  call wrfjedi_pool_get_array(pool_b, trim(poolItr % memberName), r2d_ptr_b)
-!                  r2d_ptr_a = r2d_ptr_a + r2d_ptr_b
-!                  write(0,*)'Operator add MIN/MAX: ',minval(r2d_ptr_a),maxval(r2d_ptr_a)
-!               else if (poolItr % nDims == 3) then
-!                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r3d_ptr_a)
-!                  call wrfjedi_pool_get_array(pool_b, trim(poolItr % memberName), r3d_ptr_b)
-!                  r3d_ptr_a = r3d_ptr_a + r3d_ptr_b
-!               end if
-!
-!            end if
-!         end if
-!      end do
-!
-!   end subroutine da_operator_addition
-!
-!
-!   !***********************************************************************
-!   !
-!   !  subroutine da_copy_all2sub_fields
-!   !
-!   !> \brief   Performs a copy of allfield to a sub pool A
-!   !> \author  Gael Desccombes
-!   !> \date    5 February 2018
-!   !> \details
-!   !>  Given two pools, allfields and A, where the fields in A are a subset of
-!   !>  the fields in allfields, this routine copy the fields allfields to fields in A
-!   !>  with the same name.
-!   !
-!   !-----------------------------------------------------------------------
-!   subroutine da_copy_all2sub_fields(domain, pool_a)
-!
-!      implicit none
-!
-!      type (wrfjedi_pool_type), pointer, intent(inout) :: pool_a
-!      type (wrfjedi_pool_type), pointer :: pool_b, state
-!      type (domain_type), pointer, intent(in) :: domain
-!
-!      type (wrfjedi_pool_iterator_type) :: poolItr_a, poolItr_b
-!      real (kind=kind_real), pointer :: r0d_ptr_a, r0d_ptr_b
-!      real (kind=kind_real), dimension(:), pointer :: r1d_ptr_a, r1d_ptr_b
-!      real (kind=kind_real), dimension(:,:), pointer :: r2d_ptr_a, r2d_ptr_b
-!      integer, pointer :: index_scalar
-!
-!      type (field2DReal), pointer :: field2d
-!      type (field3DReal), pointer :: field3d
-!
-!
-!      pool_b => domain % blocklist % allFields
-!      call wrfjedi_pool_get_subpool(domain % blocklist % structs,'state',state)
-!      !
-!      ! Iterate over all fields in pool_b, adding them to fields of the same
-!      ! name in pool_a
-!      !
-!      call wrfjedi_pool_begin_iteration(pool_b)
-!
-!      do while ( wrfjedi_pool_get_next_member(pool_b, poolItr_b) )
-!
-!         ! Pools may in general contain dimensions, namelist options, fields, or other pools,
-!         ! so we select only those members of the pool that are fields
-!         if (poolItr_b % memberType == WRFJEDI_POOL_FIELD) then
-!
-!            ! Fields can be integer, logical, or real. Here, we operate only on real-valued fields
-!            if (poolItr_b % dataType == WRFJEDI_POOL_REAL) then
-!
-!             call wrfjedi_pool_begin_iteration(pool_a)
-!             do while ( wrfjedi_pool_get_next_member(pool_a, poolItr_a) )
-!
-!               if (( trim(poolItr_b % memberName)).eq.(trim(poolItr_a % memberName)) ) then
-!
-!                  ! Depending on the dimensionality of the field, we need to set pointers of
-!                  ! the correct type
-!                  if (poolItr_b % nDims == 0) then
-!                     call wrfjedi_pool_get_array(pool_a, trim(poolItr_a % memberName), r0d_ptr_a)
-!                     call wrfjedi_pool_get_array(pool_b, trim(poolItr_b % memberName), r0d_ptr_b)
-!                     r0d_ptr_a = r0d_ptr_b
-!                  else if (poolItr_b % nDims == 1) then
-!                     call wrfjedi_pool_get_array(pool_a, trim(poolItr_a % memberName), r1d_ptr_a)
-!                     call wrfjedi_pool_get_array(pool_b, trim(poolItr_b % memberName), r1d_ptr_b)
-!                     r1d_ptr_a = r1d_ptr_b
-!                  else if (poolItr_b % nDims == 2) then
-!write(*,*) 'tmp poolItr_b % memberName=',trim(poolItr_b % memberName)
-!                     call wrfjedi_pool_get_array(pool_a, trim(poolItr_a % memberName), r2d_ptr_a)
-!                     call wrfjedi_pool_get_array(pool_b, trim(poolItr_b % memberName), r2d_ptr_b)
-!                     r2d_ptr_a = r2d_ptr_b
-!                     write(0,*)'Copy all2sub field ',trim(poolItr_b % memberName),' MIN/MAX: ',minval(r2d_ptr_a),maxval(r2d_ptr_a)
-!                  end if
-!
-!               else if ( trim(poolItr_b % memberName).eq.'scalars' ) then
-!                  if ( trim(poolItr_a % memberName).eq.'index_qv' .or. &
-!                       trim(poolItr_a % memberName).eq.'index_qc' .or. &
-!                       trim(poolItr_a % memberName).eq.'index_qi' .or. &
-!                       trim(poolItr_a % memberName).eq.'index_qr' .or. &
-!                       trim(poolItr_a % memberName).eq.'index_qs' ) then
-!                     write(0,*)'Copy all2sub field: Looking at SCALARS now'
-!
-!                     call wrfjedi_pool_get_dimension(state, trim(poolItr_a % memberName), index_scalar)
-!                     if (index_scalar .gt. 0) then
-!                        call wrfjedi_pool_get_field(pool_a, trim(poolItr_a % memberName), field2d)
-!                        call wrfjedi_pool_get_field(pool_b, trim(poolItr_b % memberName), field3d)
-!                        field2d % array(:,:) = field3d % array(index_scalar,:,:)
-!                        write(0,*)'Copy all2sub field ',trim(poolItr_a % memberName), &
-!                                  minval(field2d % array), maxval(field2d % array)
-!                     else
-!                        write(0,*)'WARNING in Copy all2sub field; ',trim(poolItr_a % memberName), &
-!                                  'not available from WRFJEDI'
-!                     end if
-!                  end if
-!               end if
-!            end do
-!           end if
-!         end if
-!      end do
-!
-!   end subroutine da_copy_all2sub_fields
-!
-!
-!   !***********************************************************************
-!   !
-!   !  subroutine da_copy_sub2all_fields
-!   !
-!   !> \brief   Performs a copy of a sub pool A to allfields
-!   !> \author  Gael Desccombes
-!   !> \date    5 February 2018
-!   !> \details
-!   !>  Given two pools, allfields and A, where the fields in A are a subset of
-!   !>  the fields in allfields, this routine copy the subfields to allfields
-!   !>  with the same name.
-!   !
-!   !-----------------------------------------------------------------------
-!   subroutine da_copy_sub2all_fields(domain, pool_a)
-!
-!      implicit none
-!
-!      type (wrfjedi_pool_type), pointer, intent(in) :: pool_a
-!      type (wrfjedi_pool_type), pointer :: pool_b, state
-!      type (domain_type), pointer, intent(inout) :: domain
-!
-!      type (wrfjedi_pool_iterator_type) :: poolItr_a, poolItr_b
-!      real (kind=kind_real), pointer :: r0d_ptr_a, r0d_ptr_b
-!      real (kind=kind_real), dimension(:), pointer :: r1d_ptr_a, r1d_ptr_b
-!      real (kind=kind_real), dimension(:,:), pointer :: r2d_ptr_a, r2d_ptr_b
-!      integer, pointer :: index_scalar
-!
-!      type (field2DReal), pointer :: field2d
-!      type (field3DReal), pointer :: field3d
-!
-!
-!      pool_b => domain % blocklist % allFields
-!      call wrfjedi_pool_get_subpool(domain % blocklist % structs,'state',state)
-!      !
-!      ! Iterate over all fields in pool_b, adding them to fields of the same
-!      ! name in pool_a
-!      !
-!      call wrfjedi_pool_begin_iteration(pool_b)
-!
-!      do while ( wrfjedi_pool_get_next_member(pool_b, poolItr_b) )
-!
-!         ! Pools may in general contain dimensions, namelist options, fields, or other pools,
-!         ! so we select only those members of the pool that are fields
-!         if (poolItr_b % memberType == WRFJEDI_POOL_FIELD) then
-!
-!            ! Fields can be integer, logical, or real. Here, we operate only on real-valued fields
-!            if (poolItr_b % dataType == WRFJEDI_POOL_REAL) then
-!
-!             call wrfjedi_pool_begin_iteration(pool_a)
-!             do while ( wrfjedi_pool_get_next_member(pool_a, poolItr_a) )
-!
-!               if (( trim(poolItr_b % memberName)).eq.(trim(poolItr_a % memberName)) ) then
-!
-!                  ! Depending on the dimensionality of the field, we need to set pointers of
-!                  ! the correct type
-!                  if (poolItr_b % nDims == 0) then
-!                     call wrfjedi_pool_get_array(pool_a, trim(poolItr_a % memberName), r0d_ptr_a)
-!                     call wrfjedi_pool_get_array(pool_b, trim(poolItr_b % memberName), r0d_ptr_b)
-!                     r0d_ptr_b = r0d_ptr_a
-!                  else if (poolItr_b % nDims == 1) then
-!                     call wrfjedi_pool_get_array(pool_a, trim(poolItr_a % memberName), r1d_ptr_a)
-!                     call wrfjedi_pool_get_array(pool_b, trim(poolItr_b % memberName), r1d_ptr_b)
-!                     r1d_ptr_b = r1d_ptr_a
-!                     write(0,*)'Copy sub2all field MIN/MAX: ',trim(poolItr_b % memberName),minval(r1d_ptr_a),maxval(r1d_ptr_a)
-!                  else if (poolItr_b % nDims == 2) then
-!                     call wrfjedi_pool_get_array(pool_a, trim(poolItr_a % memberName), r2d_ptr_a)
-!                     call wrfjedi_pool_get_array(pool_b, trim(poolItr_b % memberName), r2d_ptr_b)
-!                     r2d_ptr_b = r2d_ptr_a
-!                     write(0,*)'Copy sub2all field MIN/MAX: ',trim(poolItr_b % memberName),minval(r2d_ptr_a),maxval(r2d_ptr_a)
-!                  end if
-!
-!               else if ( trim(poolItr_b % memberName).eq.'scalars' ) then
-!                       !write(0,*)'Copy sub2all field: Looking at SCALARS now',trim(poolItr_a % memberName)
-!                       if ( trim(poolItr_a % memberName).eq.'index_qv' .or. &
-!                            trim(poolItr_a % memberName).eq.'index_qc' .or. &
-!                            trim(poolItr_a % memberName).eq.'index_qi' .or. &
-!                            trim(poolItr_a % memberName).eq.'index_qr' .or. &
-!                            trim(poolItr_a % memberName).eq.'index_qs' ) then
-!                          call wrfjedi_pool_get_dimension(state, trim(poolItr_a % memberName), index_scalar)
-!                          if (index_scalar .gt. 0) then
-!                             call wrfjedi_pool_get_field(pool_a, trim(poolItr_a % memberName), field2d)
-!                             call wrfjedi_pool_get_field(pool_b, trim(poolItr_b % memberName), field3d)
-!                             field3d % array(index_scalar,:,:) = field2d % array(:,:)
-!                             write(0,*)'Copy sub2all field ',trim(poolItr_a % memberName), &
-!                                       minval(field2d % array), maxval(field2d % array)
-!                          else
-!                             write(0,*)'WARNING in Copy sub2all field; ',trim(poolItr_a % memberName), &
-!                                       'not available from WRFJEDI'
-!                          end if
-!                       end if
-!               end if
-!            end do
-!           end if
-!         end if
-!      end do
-!
-!   end subroutine da_copy_sub2all_fields
-!
+   !***********************************************************************
+   !
+   !  subroutine da_operator_addition
+   !
+   !> \brief   Performs A = A + B for pools A and B
+   !> \author  Michael Duda
+   !> \date    20 December 2017
+   !> \details
+   !>  Given two pools, A and B, where the fields in B are a subset of
+   !>  the fields in A, this routine adds the fields in B to fields in A
+   !>  with the same name. When A and B contain identical fields, this
+   !>  is equivalent to A = A + B.
+   !
+   !-----------------------------------------------------------------------
+   subroutine da_operator_addition(pool_a, pool_b)
+
+      implicit none
+
+      type (wrfjedi_pool_type), pointer :: pool_a, pool_b
+
+      type (wrfjedi_pool_iterator_type) :: poolItr
+      real (kind=RKIND), pointer :: r0d_ptr_a, r0d_ptr_b
+      real (kind=RKIND), dimension(:), pointer :: r1d_ptr_a, r1d_ptr_b
+      real (kind=RKIND), dimension(:,:), pointer :: r2d_ptr_a, r2d_ptr_b
+      real (kind=RKIND), dimension(:,:,:), pointer :: r3d_ptr_a, r3d_ptr_b
+
+      !
+      ! Iterate over all fields in pool_b, adding them to fields of the same
+      ! name in pool_a
+      !
+      call wrfjedi_pool_begin_iteration(pool_b)
+
+      do while ( wrfjedi_pool_get_next_member(pool_b, poolItr) )
+
+         ! Pools may in general contain dimensions, namelist options, fields, or other pools,
+         ! so we select only those members of the pool that are fields
+         if (poolItr % memberType == WRFJEDI_POOL_FIELD) then
+
+            ! Fields can be integer, logical, or real. Here, we operate only on real-valued fields
+            if (poolItr % dataType == WRFJEDI_POOL_REAL) then
+
+               ! Depending on the dimensionality of the field, we need to set pointers of
+               ! the correct type
+               if (poolItr % nDims == 0) then
+                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r0d_ptr_a)
+                  call wrfjedi_pool_get_array(pool_b, trim(poolItr % memberName), r0d_ptr_b)
+                  r0d_ptr_a = r0d_ptr_a + r0d_ptr_b
+               else if (poolItr % nDims == 1) then
+                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r1d_ptr_a)
+                  call wrfjedi_pool_get_array(pool_b, trim(poolItr % memberName), r1d_ptr_b)
+                  r1d_ptr_a = r1d_ptr_a + r1d_ptr_b
+               else if (poolItr % nDims == 2) then
+                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r2d_ptr_a)
+                  call wrfjedi_pool_get_array(pool_b, trim(poolItr % memberName), r2d_ptr_b)
+                  r2d_ptr_a = r2d_ptr_a + r2d_ptr_b
+                  write(0,*)'Operator add MIN/MAX: ',minval(r2d_ptr_a),maxval(r2d_ptr_a)
+               else if (poolItr % nDims == 3) then
+                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r3d_ptr_a)
+                  call wrfjedi_pool_get_array(pool_b, trim(poolItr % memberName), r3d_ptr_b)
+                  r3d_ptr_a = r3d_ptr_a + r3d_ptr_b
+               end if
+
+            end if
+         end if
+      end do
+
+   end subroutine da_operator_addition
+
+
+   !***********************************************************************
+   !
+   !  subroutine da_copy_all2sub_fields
+   !
+   !> \brief   Performs a copy of pool B to a pool A
+   !> \author  Ming Hu
+   !> \date    21 November 2018
+   !> \details
+   !>  Given two pools, allfields and A, where the fields in A are a subset of
+   !>  the fields in allfields, this routine copy the fields allfields to fields in A
+   !>  with the same name.
+   !
+   !-----------------------------------------------------------------------
+   subroutine da_copy_poolB2A_fields(pool_b, pool_a)
+
+      implicit none
+
+      type (wrfjedi_pool_type), pointer, intent(inout) :: pool_a
+      type (wrfjedi_pool_type), pointer, intent(in)    :: pool_b
+
+      type (wrfjedi_pool_iterator_type) :: poolItr_a, poolItr_b
+      real (kind=RKIND), pointer :: r0d_ptr_a, r0d_ptr_b
+      real (kind=RKIND), dimension(:), pointer :: r1d_ptr_a, r1d_ptr_b
+      real (kind=RKIND), dimension(:,:), pointer :: r2d_ptr_a, r2d_ptr_b
+      real (kind=RKIND), dimension(:,:,:), pointer :: r3d_ptr_a, r3d_ptr_b
+
+
+      !
+      ! Iterate over all fields in pool_b, adding them to fields of the same
+      ! name in pool_a
+      !
+      call wrfjedi_pool_begin_iteration(pool_b)
+
+      do while ( wrfjedi_pool_get_next_member(pool_b, poolItr_b) )
+
+         ! Pools may in general contain dimensions, namelist options, fields, or other pools,
+         ! so we select only those members of the pool that are fields
+         if (poolItr_b % memberType == WRFJEDI_POOL_FIELD) then
+
+            ! Fields can be integer, logical, or real. Here, we operate only on real-valued fields
+           if (poolItr_b % dataType == WRFJEDI_POOL_REAL) then
+
+             call wrfjedi_pool_begin_iteration(pool_a)
+             do while ( wrfjedi_pool_get_next_member(pool_a, poolItr_a) )
+
+               if (( trim(poolItr_b % memberName)).eq.(trim(poolItr_a % memberName)) ) then
+
+                  ! Depending on the dimensionality of the field, we need to set pointers of
+                  ! the correct type
+                  if (poolItr_b % nDims == 0) then
+                     call wrfjedi_pool_get_array(pool_a, trim(poolItr_a % memberName), r0d_ptr_a)
+                     call wrfjedi_pool_get_array(pool_b, trim(poolItr_b % memberName), r0d_ptr_b)
+                     r0d_ptr_a = r0d_ptr_b
+                  else if (poolItr_b % nDims == 1) then
+                     call wrfjedi_pool_get_array(pool_a, trim(poolItr_a % memberName), r1d_ptr_a)
+                     call wrfjedi_pool_get_array(pool_b, trim(poolItr_b % memberName), r1d_ptr_b)
+                     r1d_ptr_a = r1d_ptr_b
+                  else if (poolItr_b % nDims == 2) then
+                     call wrfjedi_pool_get_array(pool_a, trim(poolItr_a % memberName), r2d_ptr_a)
+                     call wrfjedi_pool_get_array(pool_b, trim(poolItr_b % memberName), r2d_ptr_b)
+                     r2d_ptr_a = r2d_ptr_b
+                  else if (poolItr_b % nDims == 3) then
+                     call wrfjedi_pool_get_array(pool_a, trim(poolItr_a % memberName), r3d_ptr_a)
+                     call wrfjedi_pool_get_array(pool_b, trim(poolItr_b % memberName), r3d_ptr_b)
+                     r3d_ptr_a = r3d_ptr_b
+                  end if
+
+               else
+                  write(*,*)'WARNING in Copy all2sub field; ',trim(poolItr_a % memberName), &
+                            'not available from WRFJEDI'
+               end if
+             end do  ! loop through pool_a
+           end if
+         end if
+      end do
+
+   end subroutine da_copy_poolB2A_fields
+
+
    !***********************************************************************
    !
    !  subroutine da_check_grid_content_wrfjedi
@@ -632,347 +514,347 @@ module wrfjedi4da_mod
    end subroutine da_make_subpool_wrfjedi
 !
 !   
-!   !***********************************************************************
-!   !
-!   !  function da_common_vars
-!   !
-!   !> \author  Gael Descombes
-!   !> \date    26 December 2017
-!   !> \details
-!   !>  Count the number of fields in a Pool related to a list of fields
-!   !
-!   !-----------------------------------------------------------------------
-!   function da_common_vars(pool_a, fieldname) result(nsize0)
-!
-!      implicit none
-!      type (wrfjedi_pool_type), pointer :: pool_a, pool_b
-!      type (wrfjedi_pool_iterator_type) :: poolItr
-!      character (len=*) :: fieldname(:)
-!      integer :: ii, jj, nsize, nsize0
-!
-!      nsize0 = 0
-!      nsize  = size(fieldname)
-!      write(0,*)'da_common_vars size: ',nsize
-!      call wrfjedi_pool_begin_iteration(pool_a)
-!
-!         do while ( wrfjedi_pool_get_next_member(pool_a, poolItr) )
-!            ! Pools may in general contain dimensions, namelist options, fields, or other pools,
-!            ! so we select only those members of the pool that are fields
-!            if (poolItr % memberType == WRFJEDI_POOL_FIELD) then
-!               ! Fields can be integer, logical, or real. Here, we operate only on real-valued fields
-!               if (poolItr % dataType == WRFJEDI_POOL_REAL) then
-!                  do ii=1, nsize
-!                     if ( trim(fieldname(ii)).eq.(trim(poolItr % memberName)) ) then
-!                        write(0,*)'Common field: '//trim(fieldname(ii))
-!                        nsize0 = nsize0 + 1
-!                     else if (( trim(fieldname(ii)).eq.'index_qv').and.(trim(poolItr % memberName).eq.'scalars')) then
-!                        write(0,*)'Common field: '//trim(fieldname(ii))
-!                        nsize0 = nsize0 + 1 
-!                     end if
-!                  end do
-!               end if
-!            end if
-!         end do
-!
-!      write(0,*)'da_common_vars = ',nsize0
-!
-!   end function da_common_vars
-!
-!
-!
-!   !***********************************************************************
-!   !
-!   !  subroutine da_random
-!   !
-!   !> \brief   Performs random for pool A
-!   !> \author  Gael Descombes
-!   !> \date    January 2018
-!   !> \details
-!   !
-!   !-----------------------------------------------------------------------
-!   subroutine da_random(pool_a)
-!
-!      implicit none
-!
-!      type (wrfjedi_pool_type), intent(inout),pointer :: pool_a
-!
-!      type (wrfjedi_pool_iterator_type) :: poolItr
-!      real (kind=kind_real), pointer :: r0d_ptr_a
-!      real (kind=kind_real), dimension(:), pointer :: r1d_ptr_a
-!      real (kind=kind_real), dimension(:,:), pointer :: r2d_ptr_a
-!      real (kind=kind_real), dimension(:,:,:), pointer :: r3d_ptr_a
-!
-!      !
-!      ! Iterate over all fields in pool_b, adding them to fields of the same
-!      ! name in pool_a
-!      !
-!      call wrfjedi_pool_begin_iteration(pool_a)
-!
-!      do while ( wrfjedi_pool_get_next_member(pool_a, poolItr) )
-!
-!         ! Pools may in general contain dimensions, namelist options, fields, or other pools,
-!         ! so we select only those members of the pool that are fields
-!         if (poolItr % memberType == WRFJEDI_POOL_FIELD) then
-!
-!            ! Fields can be integer, logical, or real. Here, we operate only on real-valued fields
-!            if (poolItr % dataType == WRFJEDI_POOL_REAL) then
-!
-!               ! Depending on the dimensionality of the field, we need to set pointers of
-!               ! the correct type
-!               if (poolItr % nDims == 0) then
-!                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r0d_ptr_a)
-!                  !call random_vector(r0d_ptr_a)
-!                  call random_number(r0d_ptr_a)
-!               else if (poolItr % nDims == 1) then
-!                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r1d_ptr_a)
-!                  !call random_vector(r1d_ptr_a)
-!                  call random_number(r1d_ptr_a)
-!               else if (poolItr % nDims == 2) then
-!                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r2d_ptr_a)
-!                  !call random_vector(r2d_ptr_a)
-!                  call random_number(r2d_ptr_a)
-!               else if (poolItr % nDims == 3) then
-!                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r3d_ptr_a)
-!                  !call random_vector(r3d_ptr_a)
-!                  call random_number(r3d_ptr_a)
-!               end if
-!
-!            end if
-!         end if
-!      end do
-!
-!   end subroutine da_random
-!
-!   !-----------------------------------------------------------------------
-!   !  subroutine da_operator
-!   !
-!   !> \brief   Performs A = A 'kind_op' B for pools A and B
-!   !> \author  Michael Duda
-!   !> \date    20 December 2017
-!   !> \details
-!   !>  Given two pools, A and B, where the fields in B are a subset of
-!   !>  the fields in A, this routine adds the fields in B to fields in A
-!   !>  with the same name. When A and B contain identical fields, this
-!   !>  is equivalent to A = A 'kind_op' B.
-!   !>  \modified by Gael DESCOMBES to apply diffferent operator
-!   !
-!   !-----------------------------------------------------------------------
-!   subroutine da_operator(kind_op, pool_a, pool_b, pool_c)
-!
-!      implicit none
-!
-!      type (wrfjedi_pool_type), pointer :: pool_a, pool_b
-!      type (wrfjedi_pool_type), pointer, optional :: pool_c
-!      character (len=*) :: kind_op
-!
-!      type (wrfjedi_pool_iterator_type) :: poolItr
-!      real (kind=kind_real), pointer :: r0d_ptr_a, r0d_ptr_b, r0d_ptr_c
-!      real (kind=kind_real), dimension(:), pointer :: r1d_ptr_a, r1d_ptr_b, r1d_ptr_c
-!      real (kind=kind_real), dimension(:,:), pointer :: r2d_ptr_a, r2d_ptr_b, r2d_ptr_c
-!      real (kind=kind_real), dimension(:,:,:), pointer :: r3d_ptr_a, r3d_ptr_b, r3d_ptr_c
-!
-!      !
-!      ! Iterate over all fields in pool_b, adding them to fields of the same
-!      ! name in pool_a
-!      !
-!      call wrfjedi_pool_begin_iteration(pool_b)
-!
-!      !write(0,*)'-------------------------------------------------'
-!      !write(0,*)' Operator ',trim(kind_op)
-!      !write(0,*)'-------------------------------------------------'
-!
-!      do while ( wrfjedi_pool_get_next_member(pool_b, poolItr) )
-!
-!         ! Pools may in general contain dimensions, namelist options, fields, or other pools,
-!         ! so we select only those members of the pool that are fields
-!         if (poolItr % memberType == WRFJEDI_POOL_FIELD) then
-!
-!            ! Fields can be integer, logical, or real. Here, we operate only on real-valued fields
-!            if (poolItr % dataType == WRFJEDI_POOL_REAL) then
-!
-!               ! Depending on the dimensionality of the field, we need to set pointers of
-!               ! the correct type
-!               if (poolItr % nDims == 0) then
-!                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r0d_ptr_a)
-!                  call wrfjedi_pool_get_array(pool_b, trim(poolItr % memberName), r0d_ptr_b)
-!                  if (present(pool_c)) then
-!                     call wrfjedi_pool_get_array(pool_c, trim(poolItr % memberName), r0d_ptr_c)
-!                     r0d_ptr_a = 0.0_kind_real
-!                  end if
-!                  if ( trim(kind_op).eq.'add' ) then
-!                     r0d_ptr_a = r0d_ptr_a + r0d_ptr_b
-!                     if (present(pool_c)) then
-!                       r0d_ptr_a = r0d_ptr_b + r0d_ptr_c
-!                     else
-!                        r0d_ptr_a = r0d_ptr_a + r0d_ptr_b
-!                     end if
-!                  else if ( trim(kind_op).eq.'schur' ) then
-!                     if (present(pool_c)) then
-!                        r0d_ptr_a = r0d_ptr_b * r0d_ptr_c
-!                     else
-!                        r0d_ptr_a = r0d_ptr_a * r0d_ptr_b
-!                     end if
-!                  else if ( trim(kind_op).eq.'sub' ) then
-!                     if (present(pool_c)) then
-!                        r0d_ptr_a = r0d_ptr_b - r0d_ptr_c
-!                     else
-!                        r0d_ptr_a = r0d_ptr_a - r0d_ptr_b
-!                     end if
-!                  end if
-!
-!               else if (poolItr % nDims == 1) then
-!                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r1d_ptr_a)
-!                  call wrfjedi_pool_get_array(pool_b, trim(poolItr % memberName), r1d_ptr_b)
-!                  if (present(pool_c)) then
-!                     call wrfjedi_pool_get_array(pool_c, trim(poolItr % memberName), r1d_ptr_c)
-!                     r1d_ptr_a = 0.0_kind_real
-!                  end if
-!                  if ( trim(kind_op).eq.'add' ) then
-!                     if (present(pool_c)) then
-!                        r1d_ptr_a = r1d_ptr_b + r1d_ptr_c
-!                     else
-!                        r1d_ptr_a = r1d_ptr_a + r1d_ptr_b
-!                     end if
-!                  else if ( trim(kind_op).eq.'schur' ) then
-!                     if (present(pool_c)) then
-!                        r1d_ptr_a = r1d_ptr_b * r1d_ptr_c
-!                     else
-!                        r1d_ptr_a = r1d_ptr_a * r1d_ptr_b
-!                     end if
-!                  else if ( trim(kind_op).eq.'sub' ) then
-!                     if (present(pool_c)) then
-!                        r1d_ptr_a = r1d_ptr_b - r1d_ptr_c
-!                     else
-!                        r1d_ptr_a = r1d_ptr_a - r1d_ptr_b
-!                     end if
-!                  end if
-!
-!               else if (poolItr % nDims == 2) then
-!                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r2d_ptr_a)
-!                  call wrfjedi_pool_get_array(pool_b, trim(poolItr % memberName), r2d_ptr_b)
-!                  if (present(pool_c)) then
-!                     call wrfjedi_pool_get_array(pool_c, trim(poolItr % memberName), r2d_ptr_c)
-!                     r2d_ptr_a = 0.0_kind_real
-!                  end if
-!                  if ( trim(kind_op).eq.'add' ) then
-!                     write(0,*)'Operator_a add MIN/MAX: ',minval(r2d_ptr_a),maxval(r2d_ptr_a) 
-!                     write(0,*)'Operator_b add MIN/MAX: ',minval(r2d_ptr_b),maxval(r2d_ptr_b) 
-!                     if (present(pool_c)) then
-!                        r2d_ptr_a = r2d_ptr_b + r2d_ptr_c
-!                     else
-!                        write(*,*)'regular addition'
-!                        r2d_ptr_a = r2d_ptr_a + r2d_ptr_b
-!                     end if
-!                     write(0,*)'Operator2 add MIN/MAX: ',minval(r2d_ptr_a),maxval(r2d_ptr_a) 
-!                  else if ( trim(kind_op).eq.'schur' ) then
-!                     if (present(pool_c)) then
-!                        r2d_ptr_a = r2d_ptr_b * r2d_ptr_c
-!                     else
-!                        r2d_ptr_a = r2d_ptr_a * r2d_ptr_b
-!                     end if
-!                  else if ( trim(kind_op).eq.'sub' ) then
-!                     if (present(pool_c)) then
-!                        r2d_ptr_a = r2d_ptr_b - r2d_ptr_c
-!                     else
-!                        r2d_ptr_a = r2d_ptr_a - r2d_ptr_b
-!                     end if
-!                  end if
-!
-!               else if (poolItr % nDims == 3) then
-!                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r3d_ptr_a)
-!                  call wrfjedi_pool_get_array(pool_b, trim(poolItr % memberName), r3d_ptr_b)
-!                  if (present(pool_c)) then
-!                     call wrfjedi_pool_get_array(pool_c, trim(poolItr % memberName), r3d_ptr_c)
-!                     r3d_ptr_a = 0.0_kind_real
-!                  end if
-!                  if ( trim(kind_op).eq.'add' ) then
-!                     if (present(pool_c)) then
-!                        r3d_ptr_a = r3d_ptr_b + r3d_ptr_c
-!                     else
-!                        r3d_ptr_a = r3d_ptr_a + r3d_ptr_b
-!                     end if
-!                  else if ( trim(kind_op).eq.'schur' ) then
-!                     if (present(pool_c)) then
-!                        r3d_ptr_a = r3d_ptr_b * r3d_ptr_c
-!                     else
-!                        r3d_ptr_a = r3d_ptr_a * r3d_ptr_b
-!                     end if
-!                  else if ( trim(kind_op).eq.'sub' ) then
-!                     if (present(pool_c)) then
-!                        r3d_ptr_a = r3d_ptr_b - r3d_ptr_c
-!                     else
-!                        r3d_ptr_a = r3d_ptr_a - r3d_ptr_b
-!                     end if
-!                  end if
-!               end if
-!
-!            end if
-!         end if
-!      end do
-!
-!   end subroutine da_operator
-!
-!   !***********************************************************************
-!   !
-!   !  subroutine da_self_mult
-!   !
-!   !> \brief   Performs A = A * zz for pool A, zz a real number
-!   !> \author  Gael Descombes
-!   !> \date    22 December 2017
-!   !> \details
-!   !
-!   !-----------------------------------------------------------------------
-!   subroutine da_self_mult(pool_a, zz)
-!
-!      implicit none
-!
-!      type (wrfjedi_pool_type), pointer :: pool_a
-!      real (kind=kind_real) :: zz
-!
-!      type (wrfjedi_pool_iterator_type) :: poolItr
-!      real (kind=kind_real), pointer :: r0d_ptr_a
-!      real (kind=kind_real), dimension(:), pointer :: r1d_ptr_a
-!      real (kind=kind_real), dimension(:,:), pointer :: r2d_ptr_a
-!      real (kind=kind_real), dimension(:,:,:), pointer :: r3d_ptr_a
-!
-!      !
-!      ! Iterate over all fields in pool_b, adding them to fields of the same
-!      ! name in pool_a
-!      !
-!      call wrfjedi_pool_begin_iteration(pool_a)
-!
-!      do while ( wrfjedi_pool_get_next_member(pool_a, poolItr) )
-!
-!         ! Pools may in general contain dimensions, namelist options, fields, or other pools,
-!         ! so we select only those members of the pool that are fields
-!         if (poolItr % memberType == WRFJEDI_POOL_FIELD) then
-!
-!            ! Fields can be integer, logical, or real. Here, we operate only on real-valued fields
-!            if (poolItr % dataType == WRFJEDI_POOL_REAL) then
-!
-!               ! Depending on the dimensionality of the field, we need to set pointers of
-!               ! the correct type
-!               if (poolItr % nDims == 0) then
-!                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r0d_ptr_a)
-!                  r0d_ptr_a = r0d_ptr_a * zz
-!               else if (poolItr % nDims == 1) then
-!                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r1d_ptr_a)
-!                  r1d_ptr_a = r1d_ptr_a * zz
-!               else if (poolItr % nDims == 2) then
-!                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r2d_ptr_a)
-!                  r2d_ptr_a = r2d_ptr_a * zz
-!               else if (poolItr % nDims == 3) then
-!                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r3d_ptr_a)
-!                  r3d_ptr_a = r3d_ptr_a * zz
-!               end if
-!
-!            end if
-!         end if
-!      end do
-!
-!   end subroutine da_self_mult
-!
-!   
+   !***********************************************************************
+   !
+   !  function da_common_vars
+   !
+   !> \author  Gael Descombes
+   !> \date    26 December 2017
+   !> \details
+   !>  Count the number of fields in a Pool related to a list of fields
+   !
+   !-----------------------------------------------------------------------
+   function da_common_vars(pool_a, fieldname) result(nsize0)
+
+      implicit none
+      type (wrfjedi_pool_type), pointer :: pool_a
+      type (wrfjedi_pool_iterator_type) :: poolItr
+      character (len=*) :: fieldname(:)
+      integer :: ii, jj, nsize, nsize0
+
+      nsize0 = 0
+      nsize  = size(fieldname)
+      write(0,*)'da_common_vars size: ',nsize
+      call wrfjedi_pool_begin_iteration(pool_a)
+
+         do while ( wrfjedi_pool_get_next_member(pool_a, poolItr) )
+            ! Pools may in general contain dimensions, namelist options, fields, or other pools,
+            ! so we select only those members of the pool that are fields
+            if (poolItr % memberType == WRFJEDI_POOL_FIELD) then
+               ! Fields can be integer, logical, or real. Here, we operate only on real-valued fields
+               if (poolItr % dataType == WRFJEDI_POOL_REAL) then
+                  do ii=1, nsize
+                     if ( trim(fieldname(ii)).eq.(trim(poolItr % memberName)) ) then
+                        write(0,*)'Common field: '//trim(fieldname(ii))
+                        nsize0 = nsize0 + 1
+                     else if (( trim(fieldname(ii)).eq.'index_qv').and.(trim(poolItr % memberName).eq.'scalars')) then
+                        write(0,*)'Common field: '//trim(fieldname(ii))
+                        nsize0 = nsize0 + 1 
+                     end if
+                  end do
+               end if
+            end if
+         end do
+
+      write(0,*)'da_common_vars = ',nsize0
+
+   end function da_common_vars
+
+
+
+   !***********************************************************************
+   !
+   !  subroutine da_random
+   !
+   !> \brief   Performs random for pool A
+   !> \author  Gael Descombes
+   !> \date    January 2018
+   !> \details
+   !
+   !-----------------------------------------------------------------------
+   subroutine da_random(pool_a)
+
+      implicit none
+
+      type (wrfjedi_pool_type), intent(inout),pointer :: pool_a
+
+      type (wrfjedi_pool_iterator_type) :: poolItr
+      real (kind=RKIND), pointer :: r0d_ptr_a
+      real (kind=RKIND), dimension(:), pointer :: r1d_ptr_a
+      real (kind=RKIND), dimension(:,:), pointer :: r2d_ptr_a
+      real (kind=RKIND), dimension(:,:,:), pointer :: r3d_ptr_a
+
+      !
+      ! Iterate over all fields in pool_b, adding them to fields of the same
+      ! name in pool_a
+      !
+      call wrfjedi_pool_begin_iteration(pool_a)
+
+      do while ( wrfjedi_pool_get_next_member(pool_a, poolItr) )
+
+         ! Pools may in general contain dimensions, namelist options, fields, or other pools,
+         ! so we select only those members of the pool that are fields
+         if (poolItr % memberType == WRFJEDI_POOL_FIELD) then
+
+            ! Fields can be integer, logical, or real. Here, we operate only on real-valued fields
+            if (poolItr % dataType == WRFJEDI_POOL_REAL) then
+
+               ! Depending on the dimensionality of the field, we need to set pointers of
+               ! the correct type
+               if (poolItr % nDims == 0) then
+                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r0d_ptr_a)
+                  !call random_vector(r0d_ptr_a)
+                  call random_number(r0d_ptr_a)
+               else if (poolItr % nDims == 1) then
+                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r1d_ptr_a)
+                  !call random_vector(r1d_ptr_a)
+                  call random_number(r1d_ptr_a)
+               else if (poolItr % nDims == 2) then
+                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r2d_ptr_a)
+                  !call random_vector(r2d_ptr_a)
+                  call random_number(r2d_ptr_a)
+               else if (poolItr % nDims == 3) then
+                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r3d_ptr_a)
+                  !call random_vector(r3d_ptr_a)
+                  call random_number(r3d_ptr_a)
+               end if
+
+            end if
+         end if
+      end do
+
+   end subroutine da_random
+
+   !-----------------------------------------------------------------------
+   !  subroutine da_operator
+   !
+   !> \brief   Performs A = A 'kind_op' B for pools A and B
+   !> \author  Michael Duda
+   !> \date    20 December 2017
+   !> \details
+   !>  Given two pools, A and B, where the fields in B are a subset of
+   !>  the fields in A, this routine adds the fields in B to fields in A
+   !>  with the same name. When A and B contain identical fields, this
+   !>  is equivalent to A = A 'kind_op' B.
+   !>  \modified by Gael DESCOMBES to apply diffferent operator
+   !
+   !-----------------------------------------------------------------------
+   subroutine da_operator(kind_op, pool_a, pool_b, pool_c)
+
+      implicit none
+
+      type (wrfjedi_pool_type), pointer :: pool_a, pool_b
+      type (wrfjedi_pool_type), pointer, optional :: pool_c
+      character (len=*) :: kind_op
+
+      type (wrfjedi_pool_iterator_type) :: poolItr
+      real (kind=RKIND), pointer :: r0d_ptr_a, r0d_ptr_b, r0d_ptr_c
+      real (kind=RKIND), dimension(:), pointer :: r1d_ptr_a, r1d_ptr_b, r1d_ptr_c
+      real (kind=RKIND), dimension(:,:), pointer :: r2d_ptr_a, r2d_ptr_b, r2d_ptr_c
+      real (kind=RKIND), dimension(:,:,:), pointer :: r3d_ptr_a, r3d_ptr_b, r3d_ptr_c
+
+      !
+      ! Iterate over all fields in pool_b, adding them to fields of the same
+      ! name in pool_a
+      !
+      call wrfjedi_pool_begin_iteration(pool_b)
+
+      !write(0,*)'-------------------------------------------------'
+      !write(0,*)' Operator ',trim(kind_op)
+      !write(0,*)'-------------------------------------------------'
+
+      do while ( wrfjedi_pool_get_next_member(pool_b, poolItr) )
+
+         ! Pools may in general contain dimensions, namelist options, fields, or other pools,
+         ! so we select only those members of the pool that are fields
+         if (poolItr % memberType == WRFJEDI_POOL_FIELD) then
+
+            ! Fields can be integer, logical, or real. Here, we operate only on real-valued fields
+            if (poolItr % dataType == WRFJEDI_POOL_REAL) then
+
+               ! Depending on the dimensionality of the field, we need to set pointers of
+               ! the correct type
+               if (poolItr % nDims == 0) then
+                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r0d_ptr_a)
+                  call wrfjedi_pool_get_array(pool_b, trim(poolItr % memberName), r0d_ptr_b)
+                  if (present(pool_c)) then
+                     call wrfjedi_pool_get_array(pool_c, trim(poolItr % memberName), r0d_ptr_c)
+                     r0d_ptr_a = 0.0_kind_real
+                  end if
+                  if ( trim(kind_op).eq.'add' ) then
+                     r0d_ptr_a = r0d_ptr_a + r0d_ptr_b
+                     if (present(pool_c)) then
+                       r0d_ptr_a = r0d_ptr_b + r0d_ptr_c
+                     else
+                        r0d_ptr_a = r0d_ptr_a + r0d_ptr_b
+                     end if
+                  else if ( trim(kind_op).eq.'schur' ) then
+                     if (present(pool_c)) then
+                        r0d_ptr_a = r0d_ptr_b * r0d_ptr_c
+                     else
+                        r0d_ptr_a = r0d_ptr_a * r0d_ptr_b
+                     end if
+                  else if ( trim(kind_op).eq.'sub' ) then
+                     if (present(pool_c)) then
+                        r0d_ptr_a = r0d_ptr_b - r0d_ptr_c
+                     else
+                        r0d_ptr_a = r0d_ptr_a - r0d_ptr_b
+                     end if
+                  end if
+
+               else if (poolItr % nDims == 1) then
+                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r1d_ptr_a)
+                  call wrfjedi_pool_get_array(pool_b, trim(poolItr % memberName), r1d_ptr_b)
+                  if (present(pool_c)) then
+                     call wrfjedi_pool_get_array(pool_c, trim(poolItr % memberName), r1d_ptr_c)
+                     r1d_ptr_a = 0.0_kind_real
+                  end if
+                  if ( trim(kind_op).eq.'add' ) then
+                     if (present(pool_c)) then
+                        r1d_ptr_a = r1d_ptr_b + r1d_ptr_c
+                     else
+                        r1d_ptr_a = r1d_ptr_a + r1d_ptr_b
+                     end if
+                  else if ( trim(kind_op).eq.'schur' ) then
+                     if (present(pool_c)) then
+                        r1d_ptr_a = r1d_ptr_b * r1d_ptr_c
+                     else
+                        r1d_ptr_a = r1d_ptr_a * r1d_ptr_b
+                     end if
+                  else if ( trim(kind_op).eq.'sub' ) then
+                     if (present(pool_c)) then
+                        r1d_ptr_a = r1d_ptr_b - r1d_ptr_c
+                     else
+                        r1d_ptr_a = r1d_ptr_a - r1d_ptr_b
+                     end if
+                  end if
+
+               else if (poolItr % nDims == 2) then
+                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r2d_ptr_a)
+                  call wrfjedi_pool_get_array(pool_b, trim(poolItr % memberName), r2d_ptr_b)
+                  if (present(pool_c)) then
+                     call wrfjedi_pool_get_array(pool_c, trim(poolItr % memberName), r2d_ptr_c)
+                     r2d_ptr_a = 0.0_kind_real
+                  end if
+                  if ( trim(kind_op).eq.'add' ) then
+                     write(0,*)'Operator_a add MIN/MAX: ',minval(r2d_ptr_a),maxval(r2d_ptr_a) 
+                     write(0,*)'Operator_b add MIN/MAX: ',minval(r2d_ptr_b),maxval(r2d_ptr_b) 
+                     if (present(pool_c)) then
+                        r2d_ptr_a = r2d_ptr_b + r2d_ptr_c
+                     else
+                        write(*,*)'regular addition'
+                        r2d_ptr_a = r2d_ptr_a + r2d_ptr_b
+                     end if
+                     write(0,*)'Operator2 add MIN/MAX: ',minval(r2d_ptr_a),maxval(r2d_ptr_a) 
+                  else if ( trim(kind_op).eq.'schur' ) then
+                     if (present(pool_c)) then
+                        r2d_ptr_a = r2d_ptr_b * r2d_ptr_c
+                     else
+                        r2d_ptr_a = r2d_ptr_a * r2d_ptr_b
+                     end if
+                  else if ( trim(kind_op).eq.'sub' ) then
+                     if (present(pool_c)) then
+                        r2d_ptr_a = r2d_ptr_b - r2d_ptr_c
+                     else
+                        r2d_ptr_a = r2d_ptr_a - r2d_ptr_b
+                     end if
+                  end if
+
+               else if (poolItr % nDims == 3) then
+                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r3d_ptr_a)
+                  call wrfjedi_pool_get_array(pool_b, trim(poolItr % memberName), r3d_ptr_b)
+                  if (present(pool_c)) then
+                     call wrfjedi_pool_get_array(pool_c, trim(poolItr % memberName), r3d_ptr_c)
+                     r3d_ptr_a = 0.0_kind_real
+                  end if
+                  if ( trim(kind_op).eq.'add' ) then
+                     if (present(pool_c)) then
+                        r3d_ptr_a = r3d_ptr_b + r3d_ptr_c
+                     else
+                        r3d_ptr_a = r3d_ptr_a + r3d_ptr_b
+                     end if
+                  else if ( trim(kind_op).eq.'schur' ) then
+                     if (present(pool_c)) then
+                        r3d_ptr_a = r3d_ptr_b * r3d_ptr_c
+                     else
+                        r3d_ptr_a = r3d_ptr_a * r3d_ptr_b
+                     end if
+                  else if ( trim(kind_op).eq.'sub' ) then
+                     if (present(pool_c)) then
+                        r3d_ptr_a = r3d_ptr_b - r3d_ptr_c
+                     else
+                        r3d_ptr_a = r3d_ptr_a - r3d_ptr_b
+                     end if
+                  end if
+               end if
+
+            end if
+         end if
+      end do
+
+   end subroutine da_operator
+
+   !***********************************************************************
+   !
+   !  subroutine da_self_mult
+   !
+   !> \brief   Performs A = A * zz for pool A, zz a real number
+   !> \author  Gael Descombes
+   !> \date    22 December 2017
+   !> \details
+   !
+   !-----------------------------------------------------------------------
+   subroutine da_self_mult(pool_a, zz)
+
+      implicit none
+
+      type (wrfjedi_pool_type), pointer :: pool_a
+      real (kind=kind_real) :: zz
+
+      type (wrfjedi_pool_iterator_type) :: poolItr
+      real (kind=RKIND), pointer :: r0d_ptr_a
+      real (kind=RKIND), dimension(:), pointer :: r1d_ptr_a
+      real (kind=RKIND), dimension(:,:), pointer :: r2d_ptr_a
+      real (kind=RKIND), dimension(:,:,:), pointer :: r3d_ptr_a
+
+      !
+      ! Iterate over all fields in pool_b, adding them to fields of the same
+      ! name in pool_a
+      !
+      call wrfjedi_pool_begin_iteration(pool_a)
+
+      do while ( wrfjedi_pool_get_next_member(pool_a, poolItr) )
+
+         ! Pools may in general contain dimensions, namelist options, fields, or other pools,
+         ! so we select only those members of the pool that are fields
+         if (poolItr % memberType == WRFJEDI_POOL_FIELD) then
+
+            ! Fields can be integer, logical, or real. Here, we operate only on real-valued fields
+            if (poolItr % dataType == WRFJEDI_POOL_REAL) then
+
+               ! Depending on the dimensionality of the field, we need to set pointers of
+               ! the correct type
+               if (poolItr % nDims == 0) then
+                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r0d_ptr_a)
+                  r0d_ptr_a = r0d_ptr_a * zz
+               else if (poolItr % nDims == 1) then
+                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r1d_ptr_a)
+                  r1d_ptr_a = r1d_ptr_a * zz
+               else if (poolItr % nDims == 2) then
+                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r2d_ptr_a)
+                  r2d_ptr_a = r2d_ptr_a * zz
+               else if (poolItr % nDims == 3) then
+                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r3d_ptr_a)
+                  r3d_ptr_a = r3d_ptr_a * zz
+               end if
+
+            end if
+         end if
+      end do
+
+   end subroutine da_self_mult
+
+   
    !***********************************************************************
    !
    !  subroutine da_zeros
@@ -1055,541 +937,514 @@ module wrfjedi4da_mod
       end do
 
    end subroutine da_zeros
-!
-!   !***********************************************************************
-!   !
-!   !  subroutine da_setval
-!   !
-!   !> \brief   Performs A = Val_R. for pool A
-!   !> \author  Gael Descombes
-!   !> \date    22 December 2017
-!   !> \details
-!   !
-!   !-----------------------------------------------------------------------
-!   subroutine da_setval(pool_a,zz)
-!
-!      implicit none
-!
-!      type (wrfjedi_pool_type), pointer :: pool_a
-!      real (kind=kind_real) :: zz
-!
-!      type (wrfjedi_pool_iterator_type) :: poolItr
-!      real (kind=kind_real), pointer :: r0d_ptr_a
-!      real (kind=kind_real), dimension(:), pointer :: r1d_ptr_a
-!      real (kind=kind_real), dimension(:,:), pointer :: r2d_ptr_a
-!      real (kind=kind_real), dimension(:,:,:), pointer :: r3d_ptr_a
-!
-!      !
-!      ! Iterate over all fields in pool_b, adding them to fields of the same
-!      ! name in pool_a
-!      !
-!      call wrfjedi_pool_begin_iteration(pool_a)
-!
-!      do while ( wrfjedi_pool_get_next_member(pool_a, poolItr) )
-!
-!         ! Pools may in general contain dimensions, namelist options, fields, or other pools,
-!         ! so we select only those members of the pool that are fields
-!         if (poolItr % memberType == WRFJEDI_POOL_FIELD) then
-!
-!            ! Fields can be integer, logical, or real. Here, we operate only on real-valued fields
-!            if (poolItr % dataType == WRFJEDI_POOL_REAL) then
-!
-!               ! Depending on the dimensionality of the field, we need to set pointers of
-!               ! the correct type
-!               if (poolItr % nDims == 0) then
-!                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r0d_ptr_a)
-!                  r0d_ptr_a = zz
-!               else if (poolItr % nDims == 1) then
-!                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r1d_ptr_a)
-!                  r1d_ptr_a = zz
-!               else if (poolItr % nDims == 2) then
-!                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r2d_ptr_a)
-!                  r2d_ptr_a = zz
-!               else if (poolItr % nDims == 3) then
-!                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r3d_ptr_a)
-!                  r3d_ptr_a = zz
-!               end if
-!
-!            end if
-!         end if
-!      end do
-!
-!   end subroutine da_setval
-!
-!
-!
-!
-!
-!   !***********************************************************************
-!   !
-!   !  subroutine da_axpy
-!   !
-!   !> \brief   Performs A = A + B * zz for pools A and B
-!   !> \author  Gael Descombes
-!   !> \date    20 December 2017
-!   !> \details
-!   !>  Given two pools, A and B, where the fields in B are a subset of
-!   !>  the fields in A, this routine adds the fields in B to fields in A
-!   !>  with the same name. When A and B contain identical fields, this
-!   !>  is equivalent to A = A + B.
-!   !
-!   !-----------------------------------------------------------------------
-!   subroutine da_axpy(pool_a, pool_b, zz)
-!
-!      implicit none
-!
-!      type (wrfjedi_pool_type), pointer :: pool_a, pool_b
-!      real (kind=kind_real) :: zz
-!
-!      type (wrfjedi_pool_iterator_type) :: poolItr
-!      real (kind=kind_real), pointer :: r0d_ptr_a, r0d_ptr_b
-!      real (kind=kind_real), dimension(:), pointer :: r1d_ptr_a, r1d_ptr_b
-!      real (kind=kind_real), dimension(:,:), pointer :: r2d_ptr_a, r2d_ptr_b
-!      real (kind=kind_real), dimension(:,:,:), pointer :: r3d_ptr_a, r3d_ptr_b
-!
-!      !
-!      ! Iterate over all fields in pool_b, adding them to fields of the same
-!      ! name in pool_a
-!      !
-!      call wrfjedi_pool_begin_iteration(pool_b)
-!
-!      do while ( wrfjedi_pool_get_next_member(pool_b, poolItr) )
-!
-!         ! Pools may in general contain dimensions, namelist options, fields, or other pools,
-!         ! so we select only those members of the pool that are fields
-!         if (poolItr % memberType == WRFJEDI_POOL_FIELD) then
-!
-!            ! Fields can be integer, logical, or real. Here, we operate only on real-valued fields
-!            if (poolItr % dataType == WRFJEDI_POOL_REAL) then
-!
-!               ! Depending on the dimensionality of the field, we need to set pointers of
-!               ! the correct type
-!               if (poolItr % nDims == 0) then
-!                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r0d_ptr_a)
-!                  call wrfjedi_pool_get_array(pool_b, trim(poolItr % memberName), r0d_ptr_b)
-!                  r0d_ptr_a = r0d_ptr_a + r0d_ptr_b * zz
-!               else if (poolItr % nDims == 1) then
-!                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r1d_ptr_a)
-!                  call wrfjedi_pool_get_array(pool_b, trim(poolItr % memberName), r1d_ptr_b)
-!                  r1d_ptr_a = r1d_ptr_a + r1d_ptr_b * zz
-!               else if (poolItr % nDims == 2) then
-!                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r2d_ptr_a)
-!                  call wrfjedi_pool_get_array(pool_b, trim(poolItr % memberName), r2d_ptr_b)
-!                  r2d_ptr_a = r2d_ptr_a + r2d_ptr_b * zz
-!               else if (poolItr % nDims == 3) then
-!                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r3d_ptr_a)
-!                  call wrfjedi_pool_get_array(pool_b, trim(poolItr % memberName), r3d_ptr_b)
-!                  r3d_ptr_a = r3d_ptr_a + r3d_ptr_b * zz
-!               end if
-!
-!            end if
-!         end if
-!      end do
-!
-!   end subroutine da_axpy
-!
-!
-!   !*******************************************************************************
-!   !
-!   ! We can have information about which dims are decomposed in a single function
-!   !
-!   !*******************************************************************************
-!
-!   logical function isDecomposed(dimName)
-!
-!    implicit none
-!
-!    character(len=*), intent(in) :: dimName
-!
-!    if (trim(dimName) == 'nCells') then
-!       isDecomposed = .true.
-!       return
-!    else if (trim(dimName) == 'nEdges') then
-!       isDecomposed = .true.
-!       return
-!    else if (trim(dimName) == 'nVertices') then
-!       isDecomposed = .true.
-!       return
-!    else
-!       isDecomposed = .false.
-!       return
-!    end if
-!    if ( isDecomposed ) then 
-!       write(*,*)'is Decomposed ',trim(dimName)
-!    else
-!       write(*,*)'is not Decomposed ',trim(dimName)
-!    end if
-!
-!    end function isDecomposed
-!   
-!
-!   !***********************************************************************
-!   !
-!   !  subroutine da_gpnorm
-!   !
-!   !> \brief   Performs basic statistics min/max/norm given a pool
-!   !> \author  Gael Descombes
-!   !> \date    February 2018
-!   !> \details
-!   !>  Given a pool of fields, return min/max/norm array
-!   !
-!   !-----------------------------------------------------------------------
-!   
+
+   !***********************************************************************
+   !
+   !  subroutine da_setval
+   !
+   !> \brief   Performs A = Val_R. for pool A
+   !> \author  Gael Descombes
+   !> \date    22 December 2017
+   !> \details
+   !
+   !-----------------------------------------------------------------------
+   subroutine da_setval(pool_a,zz)
+
+      implicit none
+
+      type (wrfjedi_pool_type), pointer :: pool_a
+      real (kind=kind_real) :: zz
+
+      type (wrfjedi_pool_iterator_type) :: poolItr
+      real (kind=RKIND), pointer :: r0d_ptr_a
+      real (kind=RKIND), dimension(:), pointer :: r1d_ptr_a
+      real (kind=RKIND), dimension(:,:), pointer :: r2d_ptr_a
+      real (kind=RKIND), dimension(:,:,:), pointer :: r3d_ptr_a
+
+      !
+      ! Iterate over all fields in pool_b, adding them to fields of the same
+      ! name in pool_a
+      !
+      call wrfjedi_pool_begin_iteration(pool_a)
+
+      do while ( wrfjedi_pool_get_next_member(pool_a, poolItr) )
+
+         ! Pools may in general contain dimensions, namelist options, fields, or other pools,
+         ! so we select only those members of the pool that are fields
+         if (poolItr % memberType == WRFJEDI_POOL_FIELD) then
+
+            ! Fields can be integer, logical, or real. Here, we operate only on real-valued fields
+            if (poolItr % dataType == WRFJEDI_POOL_REAL) then
+
+               ! Depending on the dimensionality of the field, we need to set pointers of
+               ! the correct type
+               if (poolItr % nDims == 0) then
+                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r0d_ptr_a)
+                  r0d_ptr_a = zz
+               else if (poolItr % nDims == 1) then
+                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r1d_ptr_a)
+                  r1d_ptr_a = zz
+               else if (poolItr % nDims == 2) then
+                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r2d_ptr_a)
+                  r2d_ptr_a = zz
+               else if (poolItr % nDims == 3) then
+                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r3d_ptr_a)
+                  r3d_ptr_a = zz
+               end if
+
+            end if
+         end if
+      end do
+
+   end subroutine da_setval
+
+
+
+
+
+   !***********************************************************************
+   !
+   !  subroutine da_axpy
+   !
+   !> \brief   Performs A = A + B * zz for pools A and B
+   !> \author  Gael Descombes
+   !> \date    20 December 2017
+   !> \details
+   !>  Given two pools, A and B, where the fields in B are a subset of
+   !>  the fields in A, this routine adds the fields in B to fields in A
+   !>  with the same name. When A and B contain identical fields, this
+   !>  is equivalent to A = A + B.
+   !
+   !-----------------------------------------------------------------------
+   subroutine da_axpy(pool_a, pool_b, zz)
+
+      implicit none
+
+      type (wrfjedi_pool_type), pointer :: pool_a, pool_b
+      real (kind=kind_real) :: zz
+
+      type (wrfjedi_pool_iterator_type) :: poolItr
+      real (kind=RKIND), pointer :: r0d_ptr_a, r0d_ptr_b
+      real (kind=RKIND), dimension(:), pointer :: r1d_ptr_a, r1d_ptr_b
+      real (kind=RKIND), dimension(:,:), pointer :: r2d_ptr_a, r2d_ptr_b
+      real (kind=RKIND), dimension(:,:,:), pointer :: r3d_ptr_a, r3d_ptr_b
+
+      !
+      ! Iterate over all fields in pool_b, adding them to fields of the same
+      ! name in pool_a
+      !
+      call wrfjedi_pool_begin_iteration(pool_b)
+
+      do while ( wrfjedi_pool_get_next_member(pool_b, poolItr) )
+
+         ! Pools may in general contain dimensions, namelist options, fields, or other pools,
+         ! so we select only those members of the pool that are fields
+         if (poolItr % memberType == WRFJEDI_POOL_FIELD) then
+
+            ! Fields can be integer, logical, or real. Here, we operate only on real-valued fields
+            if (poolItr % dataType == WRFJEDI_POOL_REAL) then
+
+               ! Depending on the dimensionality of the field, we need to set pointers of
+               ! the correct type
+               if (poolItr % nDims == 0) then
+                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r0d_ptr_a)
+                  call wrfjedi_pool_get_array(pool_b, trim(poolItr % memberName), r0d_ptr_b)
+                  r0d_ptr_a = r0d_ptr_a + r0d_ptr_b * zz
+               else if (poolItr % nDims == 1) then
+                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r1d_ptr_a)
+                  call wrfjedi_pool_get_array(pool_b, trim(poolItr % memberName), r1d_ptr_b)
+                  r1d_ptr_a = r1d_ptr_a + r1d_ptr_b * zz
+               else if (poolItr % nDims == 2) then
+                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r2d_ptr_a)
+                  call wrfjedi_pool_get_array(pool_b, trim(poolItr % memberName), r2d_ptr_b)
+                  r2d_ptr_a = r2d_ptr_a + r2d_ptr_b * zz
+               else if (poolItr % nDims == 3) then
+                  call wrfjedi_pool_get_array(pool_a, trim(poolItr % memberName), r3d_ptr_a)
+                  call wrfjedi_pool_get_array(pool_b, trim(poolItr % memberName), r3d_ptr_b)
+                  r3d_ptr_a = r3d_ptr_a + r3d_ptr_b * zz
+               end if
+
+            end if
+         end if
+      end do
+
+   end subroutine da_axpy
+
+
+   !***********************************************************************
+   !
+   !  subroutine da_gpnorm
+   !
+   !> \brief   Performs basic statistics min/max/norm given a pool
+   !> \author  Ming Hu       
+   !> \date    November 21 2018
+   !> \details
+   !>  Given a pool of fields, return min/max/norm array
+   !
+   !-----------------------------------------------------------------------
+   
 !   subroutine da_gpnorm(pool_a, dminfo, nf, pstat)
-!
-!   implicit none
-!   type (wrfjedi_pool_type), intent(in),  pointer :: pool_a
+   subroutine da_gpnorm(pool_a, nf, pstat)
+
+   implicit none
+   type (wrfjedi_pool_type), intent(in),  pointer :: pool_a
 !   type (dm_info), intent(in),  pointer :: dminfo
-!   integer,              intent(in) :: nf
-!   real(kind=kind_real), intent(inout)  :: pstat(3, nf)
-!
-!   type (wrfjedi_pool_iterator_type) :: poolItr
-!   type (field1DReal), pointer :: field1d
-!   type (field2DReal), pointer :: field2d
-!   type (field3DReal), pointer :: field3d
-!   real(kind=kind_real) :: globalSum, globalMin, globalMax, dimtot, dimtot_global, prodtot
-!
-!   integer :: jj, ndims
-!   integer, pointer :: solveDim1, solveDim2, solveDim3
-!   !integer, pointer :: solveDim(:)
-!
-!   pstat = 0.0_kind_real
-!
-!   !
-!   ! Iterate over all fields in pool_a
-!   ! name in pool_a
-!   !
-!   call wrfjedi_pool_begin_iteration(pool_a)
-!   jj = 1
-!
-!      do while ( wrfjedi_pool_get_next_member(pool_a, poolItr) )
-!
-!         ! Pools may in general contain dimensions, namelist options, fields, or other pools,
-!         ! so we select only those members of the pool that are fields
-!         if (poolItr % memberType == WRFJEDI_POOL_FIELD) then
-!
-!            ! Fields can be integer, logical, or real. Here, we operate only on real-valued fields
-!            if (poolItr % dataType == WRFJEDI_POOL_REAL) then
-!
-!               ! Depending on the dimensionality of the field, we need to set pointers of
-!               ! the correct type
-!               ndims = poolItr % nDims
-!
+   integer,              intent(in) :: nf
+   real(kind=kind_real), intent(inout)  :: pstat(3, nf)
+
+   type (wrfjedi_pool_iterator_type) :: poolItr
+   type (field0DReal), pointer :: field0d
+   type (field1DReal), pointer :: field1d
+   type (field2DReal), pointer :: field2d
+   type (field3DReal), pointer :: field3d
+   type (field2DInteger), pointer :: ifield2d
+   real(kind=kind_real) :: globalSum, globalMin, globalMax, dimtot, dimtot_global, prodtot
+
+   integer :: jj, ndims
+   INTEGER :: sp1,ep1,sp2,ep2,sp3,ep3
+
+   pstat = 0.0_kind_real
+
+   !
+   ! Iterate over all fields in pool_a
+   ! name in pool_a
+   !
+   call wrfjedi_pool_begin_iteration(pool_a)
+   jj = 1
+
+      do while ( wrfjedi_pool_get_next_member(pool_a, poolItr) )
+
+         ! Pools may in general contain dimensions, namelist options, fields, or other pools,
+         ! so we select only those members of the pool that are fields
+         if (poolItr % memberType == WRFJEDI_POOL_FIELD) then
+
+            ! Fields can be integer, logical, or real. Here, we operate only on real-valued fields
+            if (poolItr % dataType == WRFJEDI_POOL_REAL) then
+
+               ! Depending on the dimensionality of the field, we need to set pointers of
+               ! the correct type
+               ndims = poolItr % nDims
+
 !               write(*,*)'gpnorm variable: ',trim(poolItr % memberName), ndims
-!
-!               if (ndims == 1) then
-!                  call wrfjedi_pool_get_field(pool_a, trim(poolItr % memberName), field1d)
-!                  if ( isDecomposed(field1d % dimNames(ndims)) ) then
-!                     call wrfjedi_pool_get_dimension(pool_a, trim(field1d % dimNames(ndims))//'Solve', solveDim1)
-!                  else
-!                     call wrfjedi_pool_get_dimension(pool_a, trim(field1d % dimNames(ndims)), solveDim1)
-!                  end if
-!                  dimtot = real(solveDim1,kind_real)
-!                  prodtot = sum(field1d % array(1:solveDim1)**2 )
+
+               if (ndims == 0) then
+                  allocate(field0d)
+                  call wrfjedi_pool_get_field(pool_a, trim(poolItr % memberName), field0d)
+                  pstat(1,jj) = field0d%array
+                  pstat(2,jj) = field0d%array
+                  pstat(3,jj) = field0d%array
+                  deallocate(field0d)
+                  
+               elseif (ndims == 1) then
+                  allocate(field1d)
+                  call wrfjedi_pool_get_field(pool_a, trim(poolItr % memberName), field1d)
+                  call field1d%getFieldHeadDimP(sp1,ep1,sp2,ep2,sp3,ep3)
+                  dimtot = real((ep1-sp1+1),kind_real)
+                  prodtot = sum(field1d % array(sp1:ep1)**2 )
 !                  call wrfjedi_dmpar_sum_real(dminfo, dimtot, dimtot_global)
 !                  call wrfjedi_dmpar_sum_real(dminfo, prodtot, globalSum)
 !                  call wrfjedi_dmpar_min_real(dminfo, minval(field1d % array(1:solveDim1)), globalMin)
 !                  call wrfjedi_dmpar_max_real(dminfo, maxval(field1d % array(1:solveDim1)), globalMax)
-!                  pstat(1,jj) = globalMin
-!                  pstat(2,jj) = globalMax
-!                  pstat(3,jj) = sqrt( globalSum / dimtot_global )
-!
-!               else if (ndims == 2) then
-!                  call wrfjedi_pool_get_field(pool_a, trim(poolItr % memberName), field2d)
-!                  if (isDecomposed(field2d % dimNames(ndims))) then
-!                      call wrfjedi_pool_get_dimension(pool_a, trim(field2d % dimNames(ndims))//'Solve', solveDim1)
-!                  else
-!                      call wrfjedi_pool_get_dimension(pool_a, trim(field2d % dimNames(ndims)), solveDim1)
-!                  end if
-!                  if (isDecomposed(field2d % dimNames(ndims-1))) then
-!                      call wrfjedi_pool_get_dimension(pool_a, trim(field2d % dimNames(ndims-1))//'Solve', solveDim2)
-!                  else
-!                      call wrfjedi_pool_get_dimension(pool_a, trim(field2d % dimNames(ndims-1)), solveDim2)
-!                  end if
-!                  dimtot  = real(solveDim1*solveDim2,kind_real)
-!                  prodtot = sum(field2d % array(1:solveDim2,1:solveDim1)**2 )
+                  globalMin=minval(field1d % array(sp1:ep1))
+                  globalMax=maxval(field1d % array(sp1:ep1))
+                  pstat(1,jj) = globalMin
+                  pstat(2,jj) = globalMax
+                  globalSum=prodtot
+                  dimtot_global=dimtot
+                  pstat(3,jj) = sqrt( globalSum / dimtot_global )
+                  deallocate(field1d)
+
+               else if (ndims == 2) then
+                  allocate(field2d)
+                  call wrfjedi_pool_get_field(pool_a, trim(poolItr % memberName), field2d)
+                  call field2d%getFieldHeadDimP(sp1,ep1,sp2,ep2,sp3,ep3)
+                  dimtot  = real((ep1-sp1+1)*(ep2-sp2+1),kind_real)
+                  prodtot = sum(field2d % array(sp1:ep1,sp2:ep2)**2 )
 !                  call wrfjedi_dmpar_sum_real(dminfo, dimtot, dimtot_global)
-!                  !BJJ ?? call wrfjedi_pool_get_field(pool_a, trim(poolItr % memberName), field2d)
 !                  call wrfjedi_dmpar_sum_real(dminfo, prodtot, globalSum)
 !                  call wrfjedi_dmpar_min_real(dminfo, minval(field2d % array(1:solveDim2,1:solveDim1)), globalMin)
 !                  call wrfjedi_dmpar_max_real(dminfo, maxval(field2d % array(1:solveDim2,1:solveDim1)), globalMax)
-!                  write(*,*)'gpnorm prodtot: ',prodtot, dimtot
-!                  pstat(1,jj) = globalMin
-!                  pstat(2,jj) = globalMax
-!                  pstat(3,jj) = sqrt( globalSum / dimtot_global )
-!
-!               else if (ndims == 3) then
-!                  call wrfjedi_pool_get_field(pool_a, trim(poolItr % memberName), field3d)
-!                  if (isDecomposed(field3d % dimNames(ndims))) then
-!                     call wrfjedi_pool_get_dimension(pool_a, trim(field3d % dimNames(ndims))//'Solve', solveDim1)
-!                  else
-!                     call wrfjedi_pool_get_dimension(pool_a, trim(field3d % dimNames(ndims)), solveDim1)
-!                  end if
-!                  if (isDecomposed(field3d % dimNames(ndims-1))) then
-!                     call wrfjedi_pool_get_dimension(pool_a, trim(field3d % dimNames(ndims-1))//'Solve', solveDim2)
-!                  else
-!                     call wrfjedi_pool_get_dimension(pool_a, trim(field3d % dimNames(ndims-1)), solveDim2)
-!                  end if
-!                  if (isDecomposed(field3d % dimNames(ndims-2))) then
-!                     call wrfjedi_pool_get_dimension(pool_a, trim(field3d % dimNames(ndims-2))//'Solve', solveDim3)
-!                  else
-!                     call wrfjedi_pool_get_dimension(pool_a, trim(field3d % dimNames(ndims-2)), solveDim3)
-!                  end if
-!                  dimtot  = real(solveDim1*solveDim2*solveDim3,kind_real)
-!                  prodtot = sum(field3d % array(1:solveDim3,1:solveDim2,1:solveDim1)**2 )
+                  globalMin=minval(field2d % array(sp1:ep1,sp2:ep2))
+                  globalMax=maxval(field2d % array(sp1:ep1,sp2:ep2))
+                  pstat(1,jj) = globalMin
+                  pstat(2,jj) = globalMax
+                  globalSum=prodtot
+                  dimtot_global=dimtot
+                  pstat(3,jj) = sqrt( globalSum / dimtot_global )
+                  deallocate(field2d)
+
+               else if (ndims == 3) then
+                  allocate(field3d)
+                  call wrfjedi_pool_get_field(pool_a, trim(poolItr % memberName), field3d)
+                  call field3d%getFieldHeadDimP(sp1,ep1,sp2,ep2,sp3,ep3)
+                  dimtot  = real((ep1-sp1+1)*(ep2-sp2+1)*(ep3-sp3+1),kind_real)
+                  prodtot = sum(field3d % array(sp1:ep1,sp2:ep2,sp3:ep3)**2 )
 !                  call wrfjedi_dmpar_sum_real(dminfo, dimtot, dimtot_global)
-!                  !BJJ ?? call wrfjedi_pool_get_field(pool_a, trim(poolItr % memberName), field3d)
 !                  call wrfjedi_dmpar_sum_real(dminfo, prodtot, globalSum)
 !                  call wrfjedi_dmpar_min_real(dminfo, minval(field3d % array(1:solveDim3,1:solveDim2,1:solveDim1)), globalMin)
 !                  call wrfjedi_dmpar_max_real(dminfo, maxval(field3d % array(1:solveDim3,1:solveDim2,1:solveDim1)), globalMax)
-!                  pstat(1,jj) = globalMin
-!                  pstat(2,jj) = globalMax
-!                  pstat(3,jj) = sqrt( globalSum / dimtot_global )
-!               end if
-!
-!               write(0,*)'Variable: ',trim(poolItr % memberName),jj
-!               write(0,*)'Min/Max stat: ',pstat(1,jj),pstat(2,jj),pstat(3,jj)
-!               write(0,*)'' 
-!
-!            end if
-!         end if
-!         jj = jj + 1
-!
-!      end do
-!
-!   end subroutine da_gpnorm
-!
-!
-!   !***********************************************************************
-!   !
-!   !  subroutine da_fldrms
-!   !
-!   !> \brief   Performs basic statistics min/max/norm given a pool
-!   !> \author  Gael Descombes
-!   !> \date    February 2018
-!   !> \details
-!   !>  Given a pool of fields, return min/max/norm array
-!   !
-!   !-----------------------------------------------------------------------
-!
+                  globalMin=minval(field3d % array(sp1:ep1,sp2:ep2,sp3:ep3))
+                  globalMax=maxval(field3d % array(sp1:ep1,sp2:ep2,sp3:ep3))
+                  pstat(1,jj) = globalMin
+                  pstat(2,jj) = globalMax
+                  globalSum=prodtot
+                  dimtot_global=dimtot
+                  pstat(1,jj) = globalMin
+                  pstat(2,jj) = globalMax
+                  pstat(3,jj) = sqrt( globalSum / dimtot_global )
+                  deallocate(field3d)
+               end if
+
+!               write(*,*)'Variable: ',trim(poolItr % memberName),jj
+!               write(*,*)'Min/Max stat: ',pstat(1,jj),pstat(2,jj),pstat(3,jj)
+!               write(*,*)'' 
+
+            elseif (poolItr % dataType == WRFJEDI_POOL_INTEGER) then
+
+               ndims = poolItr % nDims
+!               write(*,*)'gpnorm variable: ',trim(poolItr % memberName), ndims
+
+               if (ndims == 2) then
+                  allocate(ifield2d)
+                  call wrfjedi_pool_get_field(pool_a, trim(poolItr % memberName), ifield2d)
+                  call ifield2d%getFieldHeadDimP(sp1,ep1,sp2,ep2,sp3,ep3)
+                  dimtot  = real((ep1-sp1+1)*(ep2-sp2+1),kind_real)
+                  prodtot = sum(ifield2d % array(sp1:ep1,sp2:ep2)**2 )
+                  globalMin=minval(ifield2d % array(sp1:ep1,sp2:ep2))
+                  globalMax=maxval(ifield2d % array(sp1:ep1,sp2:ep2))
+                  pstat(1,jj) = globalMin
+                  pstat(2,jj) = globalMax
+                  globalSum=prodtot
+                  dimtot_global=dimtot
+                  pstat(3,jj) = sqrt( globalSum / dimtot_global )
+                  deallocate(ifield2d)
+
+               endif
+
+!               write(*,*)'Variable: ',trim(poolItr % memberName),jj
+!               write(*,*)'Min/Max stat: ',pstat(1,jj),pstat(2,jj),pstat(3,jj)
+!               write(*,*)'' 
+
+            end if
+         end if
+         jj = jj + 1
+
+      end do
+
+   end subroutine da_gpnorm
+
+
+   !***********************************************************************
+   !
+   !  subroutine da_fldrms
+   !
+   !> \brief   Performs basic statistics min/max/norm given a pool
+   !> \author  Gael Descombes
+   !> \date    February 2018
+   !> \details
+   !>  Given a pool of fields, return min/max/norm array
+   !
+   !-----------------------------------------------------------------------
+
 !   subroutine da_fldrms(pool_a, dminfo, fldrms)
-!
-!   implicit none
-!   type (wrfjedi_pool_type), intent(in),  pointer :: pool_a
+   subroutine da_fldrms(pool_a, fldrms)
+
+   implicit none
+   type (wrfjedi_pool_type), intent(in),  pointer :: pool_a
 !   type (dm_info), intent(in),  pointer :: dminfo
-!   real(kind=kind_real), intent(out) :: fldrms
-!
-!   type (wrfjedi_pool_iterator_type) :: poolItr
-!   type (field1DReal), pointer :: field1d
-!   type (field2DReal), pointer :: field2d
-!   type (field3DReal), pointer :: field3d
-!   real(kind=kind_real) :: dimtot, dimtot_global, prodtot, prodtot_global 
-!
-!   integer :: jj, ndims
-!   integer, pointer :: solveDim1, solveDim2, solveDim3
-!
-!   prodtot = 0.0_kind_real
-!   dimtot  = 0.0_kind_real
-!
-!   !
-!   ! Iterate over all fields in pool_a
-!   ! named in pool_a
-!   !
-!   call wrfjedi_pool_begin_iteration(pool_a)
-!   jj = 1
-!
-!   do while ( wrfjedi_pool_get_next_member(pool_a, poolItr) )
-!
-!         if (poolItr % dataType == WRFJEDI_POOL_REAL) then
-!            if (poolItr % memberType == WRFJEDI_POOL_FIELD) then
-!            
-!               ndims = poolItr % nDims
-!               write(*,*)'fldrms variable: ',trim(poolItr % memberName),ndims
-!
-!               if (ndims == 1) then
-!                  call wrfjedi_pool_get_field(pool_a, trim(poolItr % memberName), field1d)
-!                  if (isDecomposed(field1d % dimNames(ndims))) then
-!                     call wrfjedi_pool_get_dimension(pool_a, trim(field1d % dimNames(ndims))//'Solve', solveDim1)
-!                  else
-!                     call wrfjedi_pool_get_dimension(pool_a, trim(field1d % dimNames(ndims)), solveDim1)
-!                  end if
-!                  dimtot  = dimtot + real(solveDim1,kind_real)
-!                  prodtot = prodtot + sum( field1d % array(1:solveDim1)**2 )
-!
-!               else if (ndims == 2) then
-!                  call wrfjedi_pool_get_field(pool_a, trim(poolItr % memberName), field2d)
-!                  if (isDecomposed(field2d % dimNames(ndims))) then
-!                      call wrfjedi_pool_get_dimension(pool_a, trim(field2d % dimNames(ndims))//'Solve', solveDim1)
-!                  else
-!                      call wrfjedi_pool_get_dimension(pool_a, trim(field2d % dimNames(ndims)), solveDim1)
-!                  end if
-!                  if (isDecomposed(field2d % dimNames(ndims-1))) then
-!                      call wrfjedi_pool_get_dimension(pool_a, trim(field2d % dimNames(ndims-1))//'Solve', solveDim2)
-!                  else
-!                      call wrfjedi_pool_get_dimension(pool_a, trim(field2d % dimNames(ndims-1)), solveDim2)
-!                  end if
-!                  dimtot  = dimtot + real(solveDim1*solveDim2,kind_real)
-!                  prodtot = prodtot + sum( field2d % array(1:solveDim2,1:solveDim1)**2 )
-!
-!                  write(*,*)'fldrms dims: ',solveDim1, solveDim2
-!                  write(*,*)'fldrms, dimtot, prodtot: ', dimtot, prodtot
-!
-!                else if (ndims == 3) then
-!                  call wrfjedi_pool_get_field(pool_a, trim(poolItr % memberName), field3d)
-!                  write(*,*)'dimNames ',trim(field3d % dimNames(ndims))
-!                  if (isDecomposed(field3d % dimNames(ndims))) then
-!                     call wrfjedi_pool_get_dimension(pool_a, trim(field3d % dimNames(ndims))//'Solve', solveDim1)
-!                  else
-!                     call wrfjedi_pool_get_dimension(pool_a, trim(field3d % dimNames(ndims)), solveDim1)
-!                  end if
-!                  if (isDecomposed(field3d % dimNames(ndims-1))) then
-!                     call wrfjedi_pool_get_dimension(pool_a, trim(field3d % dimNames(ndims-1))//'Solve', solveDim2)
-!                  else
-!                     call wrfjedi_pool_get_dimension(pool_a, trim(field3d % dimNames(ndims-1)), solveDim2)
-!                  end if
-!                  if (isDecomposed(field3d % dimNames(ndims-2))) then
-!                     call wrfjedi_pool_get_dimension(pool_a, trim(field3d % dimNames(ndims-2))//'Solve', solveDim3)
-!                  else
-!                     call wrfjedi_pool_get_dimension(pool_a, trim(field3d % dimNames(ndims-2)), solveDim3)
-!                  end if
-!                  dimtot  = dimtot + real(solveDim1*solveDim2*solveDim3,kind_real)
-!                  prodtot = prodtot + sum( field3d % array(1:solveDim3,1:solveDim2,1:solveDim1)**2 )
-!
-!               end if
-!
-!               ! JJG: This output is useful for checks across multiple processors, really only need to do this comm once though (below)
-!!               call wrfjedi_dmpar_sum_real(dminfo, dimtot, dimtot_global)
-!!               call wrfjedi_dmpar_sum_real(dminfo, prodtot, prodtot_global)
-!!               write(*,*)'fldrms, dimtot_global, prodtot_global: ', dimtot_global, prodtot_global
-!
-!            end if
-!         end if
-!         jj = jj + 1
-!
-!      end do
-!
+   real(kind=kind_real), intent(out) :: fldrms
+
+   type (wrfjedi_pool_iterator_type) :: poolItr
+   type (field1DReal), pointer :: field1d
+   type (field2DReal), pointer :: field2d
+   type (field3DReal), pointer :: field3d
+   real(kind=kind_real) :: dimtot, dimtot_global, prodtot, prodtot_global 
+
+   integer :: jj, ndims
+   INTEGER :: sp1,ep1,sp2,ep2,sp3,ep3
+
+   prodtot = 0.0_kind_real
+   dimtot  = 0.0_kind_real
+
+   !
+   ! Iterate over all fields in pool_a
+   ! named in pool_a
+   !
+   call wrfjedi_pool_begin_iteration(pool_a)
+   jj = 1
+
+   do while ( wrfjedi_pool_get_next_member(pool_a, poolItr) )
+
+         if (poolItr % dataType == WRFJEDI_POOL_REAL) then
+            if (poolItr % memberType == WRFJEDI_POOL_FIELD) then
+            
+               ndims = poolItr % nDims
+               write(*,*)'fldrms variable: ',trim(poolItr % memberName),ndims
+
+               if (ndims == 1) then
+                  allocate(field1d)
+                  call wrfjedi_pool_get_field(pool_a, trim(poolItr % memberName), field1d)
+                  call field1d%getFieldHeadDimP(sp1,ep1,sp2,ep2,sp3,ep3)
+                  dimtot = real((ep1-sp1+1),kind_real)
+                  prodtot = sum(field1d % array(sp1:ep1)**2 )
+                  deallocate(field1d)
+
+               else if (ndims == 2) then
+                  allocate(field2d)
+                  call wrfjedi_pool_get_field(pool_a, trim(poolItr % memberName), field2d)
+                  call field2d%getFieldHeadDimP(sp1,ep1,sp2,ep2,sp3,ep3)
+                  dimtot  = real((ep1-sp1+1)*(ep2-sp2+1),kind_real)
+                  prodtot = sum(field2d % array(sp1:ep1,sp2:ep2)**2 )
+                  deallocate(field2d)
+
+                  write(*,*)'fldrms dims: ',(ep1-sp1+1),(ep2-sp2+1)
+                  write(*,*)'fldrms, dimtot, prodtot: ', dimtot, prodtot
+
+                else if (ndims == 3) then
+                  allocate(field3d)
+                  call wrfjedi_pool_get_field(pool_a, trim(poolItr % memberName), field3d)
+                  call field3d%getFieldHeadDimP(sp1,ep1,sp2,ep2,sp3,ep3)
+                  dimtot  = real((ep1-sp1+1)*(ep2-sp2+1)*(ep3-sp3+1),kind_real)
+                  prodtot = sum(field3d % array(sp1:ep1,sp2:ep2,sp3:ep3)**2 )
+                  deallocate(field3d)
+
+               end if
+
+               ! JJG: This output is useful for checks across multiple processors, really only need to do this comm once though (below)
+!               call wrfjedi_dmpar_sum_real(dminfo, dimtot, dimtot_global)
+!               call wrfjedi_dmpar_sum_real(dminfo, prodtot, prodtot_global)
+!               write(*,*)'fldrms, dimtot_global, prodtot_global: ', dimtot_global, prodtot_global
+
+            end if
+         end if
+         jj = jj + 1
+
+      end do
+
 !      call wrfjedi_dmpar_sum_real(dminfo, dimtot, dimtot_global)
 !      call wrfjedi_dmpar_sum_real(dminfo, prodtot, prodtot_global)
-!      fldrms = sqrt(prodtot_global / dimtot_global)
-!      write(*,*)'fldrms = sqrt( prodtot_global / dimtot_global) : ', fldrms, prodtot_global, dimtot_global
-!      
-!
-!  end subroutine da_fldrms
-!
-!
-!   !***********************************************************************
-!   !
-!   !  subroutine da_dot_product
-!   !
-!   !> \brief   Performs the dot_product given two pools of fields
-!   !> \author  Gael Descombes
-!   !> \date    February 2018
-!   !> \details
-!   !>  Given two pools of fields, compute the dot_product
-!   !
-!   !-----------------------------------------------------------------------
-!
+      prodtot_global=prodtot
+      dimtot_global=dimtot
+      fldrms = sqrt(prodtot_global / dimtot_global)
+      write(*,*)'fldrms = sqrt( prodtot_global / dimtot_global) : ', fldrms, prodtot_global, dimtot_global
+      
+
+  end subroutine da_fldrms
+
+
+   !***********************************************************************
+   !
+   !  subroutine da_dot_product
+   !
+   !> \brief   Performs the dot_product given two pools of fields
+   !> \author  Ming Hu
+   !> \date    November 21 2018
+   !> \details
+   !>  Given two pools of fields, compute the dot_product
+   !
+   !-----------------------------------------------------------------------
+
 !   subroutine da_dot_product(pool_a, pool_b, dminfo, zprod)
-!
-!   implicit none
-!   type (wrfjedi_pool_type), intent(in),  pointer :: pool_a, pool_b
+   subroutine da_dot_product(pool_a, pool_b, zprod)
+
+   implicit none
+   type (wrfjedi_pool_type), intent(in),  pointer :: pool_a, pool_b
 !   type (dm_info), intent(in),  pointer :: dminfo
-!   real(kind=kind_real), intent(out) :: zprod
-!
-!   type (wrfjedi_pool_iterator_type) :: poolItr
-!   type (field1DReal), pointer :: field1d_a, field1d_b
-!   type (field2DReal), pointer :: field2d_a, field2d_b
-!   type (field3DReal), pointer :: field3d_a, field3d_b
-!   real(kind=kind_real) :: fieldSum_local, zprod_local
-!
-!   integer :: jj, ndims
-!   integer, pointer :: solveDim1, solveDim2, solveDim3
-!
-!   !
-!   ! Iterate over all fields in pool_a
-!   ! named in pool_a
-!   !
-!   call wrfjedi_pool_begin_iteration(pool_a)
-!
-!   zprod_local = 0.0_kind_real
-!
-!   do while ( wrfjedi_pool_get_next_member(pool_a, poolItr) )
-!
-!         if (poolItr % dataType == WRFJEDI_POOL_REAL) then
-!            if (poolItr % memberType == WRFJEDI_POOL_FIELD) then
-!
-!               write(*,*)'variable: ',trim(poolItr % memberName)
-!               ndims = poolItr % nDims 
-!
-!               if (ndims == 1) then
-!                  call wrfjedi_pool_get_field(pool_a, trim(poolItr % memberName), field1d_a)
-!                  if ( isDecomposed(field1d_a % dimNames(ndims)) ) then
-!                     call wrfjedi_pool_get_dimension(pool_a, trim(field1d_a % dimNames(ndims))//'Solve', solveDim1)
-!                  else
-!                     call wrfjedi_pool_get_dimension(pool_a, trim(field1d_a % dimNames(ndims)), solveDim1)
-!                  end if
-!                  call wrfjedi_pool_get_field(pool_a, trim(poolItr % memberName), field1d_a)
-!                  call wrfjedi_pool_get_field(pool_b, trim(poolItr % memberName), field1d_b)
-!                  fieldSum_local = sum(field1d_a % array(1:solveDim1) * field1d_b % array(1:solveDim1))
-!                  zprod_local = zprod_local + fieldSum_local
-!                  write(*,*)'dotprod: ',trim(field1d_a % dimNames(ndims)), zprod_local
-!
-!               else if (ndims == 2) then
-!                  call wrfjedi_pool_get_field(pool_a, trim(poolItr % memberName), field2d_a)
-!                  if (isDecomposed(field2d_a % dimNames(ndims))) then
-!                      call wrfjedi_pool_get_dimension(pool_a, trim(field2d_a % dimNames(ndims))//'Solve', solveDim1)
-!                  else
-!                      call wrfjedi_pool_get_dimension(pool_a, trim(field2d_a % dimNames(ndims)), solveDim1)
-!                  end if
-!                  if (isDecomposed(field2d_a % dimNames(ndims-1))) then
-!                      call wrfjedi_pool_get_dimension(pool_a, trim(field2d_a % dimNames(ndims-1))//'Solve', solveDim2)
-!                  else
-!                      call wrfjedi_pool_get_dimension(pool_a, trim(field2d_a % dimNames(ndims-1)), solveDim2)
-!                  end if
-!                  call wrfjedi_pool_get_field(pool_a, trim(poolItr % memberName), field2d_a)
-!                  call wrfjedi_pool_get_field(pool_b, trim(poolItr % memberName), field2d_b)
-!                  fieldSum_local = sum(field2d_a % array(1:solveDim2,1:solveDim1) * field2d_b % array(1:solveDim2,1:solveDim1))
-!                  zprod_local = zprod_local + fieldSum_local
-!                  write(*,*)'dotprod: ',trim(field2d_a % dimNames(ndims)), zprod_local
-!
-!               else if (ndims == 3) then
-!                  call wrfjedi_pool_get_field(pool_a, trim(poolItr % memberName), field3d_a)
-!                  write(*,*)'dimNames ',trim(field3d_a % dimNames(ndims))
-!                  if (isDecomposed(field3d_a % dimNames(ndims))) then
-!                     call wrfjedi_pool_get_dimension(pool_a, trim(field3d_a % dimNames(ndims))//'Solve', solveDim1)
-!                  else
-!                     call wrfjedi_pool_get_dimension(pool_a, trim(field3d_a % dimNames(ndims)), solveDim1)
-!                  end if
-!                  if (isDecomposed(field3d_a % dimNames(ndims-1))) then
-!                     call wrfjedi_pool_get_dimension(pool_a, trim(field3d_a % dimNames(ndims-1))//'Solve', solveDim2)
-!                  else
-!                     call wrfjedi_pool_get_dimension(pool_a, trim(field3d_a % dimNames(ndims-1)), solveDim2)
-!                  end if
-!                  if (isDecomposed(field3d_a % dimNames(ndims-2))) then
-!                     call wrfjedi_pool_get_dimension(pool_a, trim(field3d_a % dimNames(ndims-2))//'Solve', solveDim3)
-!                  else
-!                     call wrfjedi_pool_get_dimension(pool_a, trim(field3d_a % dimNames(ndims-2)), solveDim3)
-!                  end if
-!                  call wrfjedi_pool_get_field(pool_a, trim(poolItr % memberName), field3d_a)
-!                  call wrfjedi_pool_get_field(pool_b, trim(poolItr % memberName), field3d_b)
-!                  fieldSum_local = sum(field3d_a % array(1:solveDim3,1:solveDim2,1:solveDim1) &
-!                                    * field3d_b % array(1:solveDim3,1:solveDim2,1:solveDim1))
-!                  zprod_local = zprod_local + fieldSum_local
-!                  write(*,*)'dotprod: ',trim(field2d_a % dimNames(ndims)), zprod_local
-!
-!               end if
-!
-!            end if
-!         end if
-!
-!      end do
-!
+   real(kind=kind_real), intent(out) :: zprod
+
+   type (wrfjedi_pool_iterator_type) :: poolItr
+   type (field1DReal), pointer :: field1d_a, field1d_b
+   type (field2DReal), pointer :: field2d_a, field2d_b
+   type (field3DReal), pointer :: field3d_a, field3d_b
+   real(kind=kind_real) :: fieldSum_local, zprod_local
+
+   integer :: jj, ndims
+   
+   INTEGER :: sp1,ep1,sp2,ep2,sp3,ep3
+
+   logical :: lSameDim
+   !
+   ! Iterate over all fields in pool_a
+   ! named in pool_a
+   !
+   call wrfjedi_pool_begin_iteration(pool_a)
+
+   zprod_local = 0.0_kind_real
+
+   do while ( wrfjedi_pool_get_next_member(pool_a, poolItr) )
+
+         if (poolItr % memberType == WRFJEDI_POOL_FIELD) then
+            if (poolItr % dataType == WRFJEDI_POOL_REAL) then
+
+               write(*,*)'variable: ',trim(poolItr % memberName)
+               ndims = poolItr % nDims 
+
+               if (ndims == 1) then
+                  allocate(field1d_a,field1d_b)
+                  call wrfjedi_pool_get_field(pool_a, trim(poolItr % memberName), field1d_a)
+                  call wrfjedi_pool_get_field(pool_b, trim(poolItr % memberName), field1d_b)
+                  lSameDim=.false.
+                  call field1d_a%compareFieldHead(field1d_b%fieldhead,lSameDim)
+                  if(lSameDim) then
+                     call field1d_a%getFieldHeadDimP(sp1,ep1,sp2,ep2,sp3,ep3)
+                     fieldSum_local = sum(field1d_a % array(sp1:ep1) * field1d_b % array(sp1:ep1))
+                  else
+                     fieldSum_local=0.0
+                     write(*,*) 'Warning: mismatch dimension for field1d_a and field1d_b !'
+                  endif
+                  zprod_local = zprod_local + fieldSum_local
+                  write(*,*)'dotprod: ',trim(field1d_a % VarName), zprod_local,fieldSum_local
+                  deallocate(field1d_a,field1d_b)
+
+               else if (ndims == 2) then
+                  allocate(field2d_a,field2d_b)
+                  call wrfjedi_pool_get_field(pool_a, trim(poolItr % memberName), field2d_a)
+                  call wrfjedi_pool_get_field(pool_b, trim(poolItr % memberName), field2d_b)
+                  lSameDim=.false.
+                  call field2d_a%compareFieldHead(field2d_b%fieldhead,lSameDim)
+                  if(lSameDim) then
+                     call field2d_a%getFieldHeadDimP(sp1,ep1,sp2,ep2,sp3,ep3)
+                     fieldSum_local = sum(field2d_a % array(sp1:ep1,sp2:ep2) * field2d_b % array(sp1:ep1,sp2:ep2))
+                  else
+                     fieldSum_local=0.0
+                     write(*,*) 'Warning: mismatch dimension for field2d_a and field2d_b !'
+                  endif
+                  zprod_local = zprod_local + fieldSum_local
+                  write(*,*)'dotprod: ',trim(field1d_a % VarName), zprod_local,fieldSum_local
+                  deallocate(field2d_a,field2d_b)
+
+               else if (ndims == 3) then
+                  allocate(field3d_a,field3d_b)
+                  call wrfjedi_pool_get_field(pool_a, trim(poolItr % memberName), field3d_a)
+                  call wrfjedi_pool_get_field(pool_b, trim(poolItr % memberName), field3d_b)
+                  lSameDim=.false.
+                  call field3d_a%compareFieldHead(field3d_b%fieldhead,lSameDim)
+                  if(lSameDim) then
+                     call field3d_a%getFieldHeadDimP(sp1,ep1,sp2,ep2,sp3,ep3)
+                     fieldSum_local = sum(field3d_a % array(sp1:ep1,sp2:ep2,sp3:ep3) &
+                                       *  field3d_b % array(sp1:ep1,sp2:ep2,sp3:ep3))
+                  else
+                     fieldSum_local=0.0
+                     write(*,*) 'Warning: mismatch dimension for field3d_a and field3d_b !'
+                  endif
+                  zprod_local = zprod_local + fieldSum_local
+                  write(*,*)'dotprod: ',trim(field1d_a % VarName), zprod_local,fieldSum_local
+                  deallocate(field3d_a,field3d_b)
+
+               end if
+
+            end if
+         end if
+
+      end do
+
 !      call wrfjedi_dmpar_sum_real(dminfo, zprod_local, zprod)
-!      write(*,*)'dotprod: Final result = ',zprod
-!
-!  end subroutine da_dot_product
-!
-!
+      zprod=zprod_local
+      write(*,*)'dotprod: Final result for patch = ',zprod
+
+  end subroutine da_dot_product
+
+
 !  subroutine cvt_oopswrfjedi_date(inString2,outString2,iconv)
 !   
 !     implicit none
@@ -1674,114 +1529,28 @@ module wrfjedi4da_mod
 !
 !  end subroutine cvt_oopswrfjedi_date
 !
-!
-!
-!! ------------------------------------------------------------------------
-!!  chunk of code from DART
-!! ------------------------------------------------------------------------
-!
-!subroutine uv_cell_to_edges(domain, u_field, v_field, du, lonCell, latCell, & 
-!                            &  nCells, edgeNormalVectors, nEdgesOnCell, edgesOnCell, nVertLevels)
-!
-!   ! Project u, v wind increments at cell centers onto the edges.
-!   ! FIXME:
-!   !        we can hard-code R3 here since it comes from the (3d) x/y/z cartesian coordinate.
-!   !        We define nEdgesOnCell in get_grid_dims, and read edgesOnCell in get_grid.
-!   !        We read edgeNormalVectors in get_grid to use this subroutine.
-!   !        Here "U" is the prognostic variable in WRFJEDI, and we update it with the wind
-!   !        increments at cell centers.
-!
-!   implicit none
-!
-!   type (domain_type), pointer, intent(inout) :: domain
-!   type (field2DReal), pointer, intent(in) :: u_field    ! u wind updated from filter
-!   type (field2DReal), pointer, intent(in) :: v_field    ! v wind updated from filter
-!   type (field2DReal), pointer, intent(inout) :: du       ! normal velocity increment on the edges
-!   real(kind_real), intent(in) :: lonCell(1:nCells), latCell(1:nCells)    ! normal velocity increment on the edges
-!   real(kind_real), intent(in) :: edgeNormalVectors(:,:)
-!   integer, intent(in) :: nEdgesOnCell(:), edgesOnCell(:,:)
-!   integer, intent(in) :: nCells, nVertLevels
-!
-!   ! Local variables
-!   integer, parameter :: R3 = 3
-!   real(kind_real), dimension(:,:), allocatable :: east, north
-!   real(kind_real), dimension(:), allocatable :: lonCell_rad, latCell_rad
-!   integer  :: iCell, iEdge, jEdge, k
-!   real(kind=kind_real), parameter :: deg2rad = pii/180. !-BJJ To-be-removed, when WRFJEDI-release updated from Gael.
-!
-!   ! allocation
-!   allocate(east(R3,nCells))
-!   allocate(north(R3,nCells))
-!   allocate(lonCell_rad(nCells))
-!   allocate(latCell_rad(nCells))
-!
-!   ! Initialization
-!   du%array(:,:) = 0.0_kind_real
-!
-!   ! Back to radians (locally)
-!   lonCell_rad = lonCell*deg2rad
-!   latCell_rad = latCell*deg2rad
-!
-!   ! Compute unit vectors in east and north directions for each cell:
-!   do iCell = 1, nCells
-!       east(1,iCell) = -sin(lonCell_rad(iCell))
-!       east(2,iCell) =  cos(lonCell_rad(iCell))
-!       east(3,iCell) =  0.0_kind_real
-!       call r3_normalize(east(1,iCell), east(2,iCell), east(3,iCell))
-!       north(1,iCell) = -cos(lonCell_rad(iCell))*sin(latCell_rad(iCell))
-!       north(2,iCell) = -sin(lonCell_rad(iCell))*sin(latCell_rad(iCell))
-!       north(3,iCell) =  cos(latCell_rad(iCell))
-!       call r3_normalize(north(1,iCell), north(2,iCell), north(3,iCell))
-!   end do
-!
-!   ! Project analysis increments from the cell centers to the edges
-!
-!   do iCell = 1, nCells
-!      do jEdge = 1, nEdgesOnCell(iCell)
-!         iEdge = edgesOnCell(jEdge, iCell)
-!            do k = 1, nVertLevels
-!               du%array(k,iEdge) = du%array(k,iEdge) + 0.5_kind_real * u_field%array(k,iCell)   &
-!                     * (edgeNormalVectors(1,iEdge) * east(1,iCell)  &
-!                     +  edgeNormalVectors(2,iEdge) * east(2,iCell)  &
-!                     +  edgeNormalVectors(3,iEdge) * east(3,iCell)) &
-!                     + 0.5_kind_real * v_field%array(k,iCell)            &
-!                     * (edgeNormalVectors(1,iEdge) * north(1,iCell) &
-!                     +  edgeNormalVectors(2,iEdge) * north(2,iCell) &
-!                     +  edgeNormalVectors(3,iEdge) * north(3,iCell))
-!            end do
-!      end do
-!   end do
-!
-!   ! deallocation
-!   deallocate(east)
-!   deallocate(north)
-!   deallocate(lonCell_rad)
-!   deallocate(latCell_rad)
-!
-!end subroutine uv_cell_to_edges
-!
-!!----------------------------------------------------------------------
-!
-!subroutine r3_normalize(ax, ay, az)
-!
-!   implicit none
-!
-!   real(kind_real), intent(inout) :: ax, ay, az
-!   real(kind_real) :: mi
-!
-!   mi = 1.0_kind_real / sqrt(ax**2 + ay**2 + az**2)
-!
-!   ax = ax * mi
-!   ay = ay * mi
-!   az = az * mi
-!
-!end subroutine r3_normalize
-!
-!!-----------------------------------------------------------------------
-!
-!
-!
-!!===============================================================================================================
-!
+!----------------------------------------------------------------------
+
+subroutine r3_normalize(ax, ay, az)
+
+   implicit none
+
+   real(kind_real), intent(inout) :: ax, ay, az
+   real(kind_real) :: mi
+
+   mi = 1.0_kind_real / sqrt(ax**2 + ay**2 + az**2)
+
+   ax = ax * mi
+   ay = ay * mi
+   az = az * mi
+
+end subroutine r3_normalize
+
+!-----------------------------------------------------------------------
+
+
+
+!===============================================================================================================
+
 end module wrfjedi4da_mod 
 !

@@ -51,6 +51,11 @@ module wrfjedi_derived_types
          procedure :: sendFieldHead 
          procedure :: fillFieldHead 
          procedure :: printFieldHead 
+         procedure :: compareFieldHead 
+         procedure :: getFieldHeadDimD 
+         procedure :: getFieldHeadDimM 
+         procedure :: getFieldHeadDimP 
+         procedure :: getFieldHeadDim 
 
    end type fieldhead
 
@@ -245,5 +250,110 @@ module wrfjedi_derived_types
       write(*,*) 'sp3 = ', this%sp3, 'ep3 = ', this%ep3
 
    end subroutine printFieldHead
+
+   subroutine compareFieldHead(this,inhead,lSameDim)
+!
+      class(fieldhead) :: this
+      type (fieldhead), intent(in) :: inhead
+      logical, intent(out) :: lSameDim
+
+      iCountDiff=0
+      lSameDim=.false.
+
+      if( trim(this%VarName)     /= trim(inhead%VarName) )     iCountDiff = iCountDiff + 1
+      if(      this%Type         /=      inhead%Type     )     iCountDiff = iCountDiff + 1
+      if( trim(this%MemoryOrder) /= trim(inhead%MemoryOrder) ) iCountDiff = iCountDiff + 1
+      if(      this%Ndim         /=      inhead%Ndim     )     iCountDiff = iCountDiff + 1
+
+      if( iCountDiff == 0 ) then
+         if(this%Ndim >= 1) then
+            if(this%sd1 /= inhead%sd1) iCountDiff = iCountDiff + 1
+            if(this%ed1 /= inhead%ed1) iCountDiff = iCountDiff + 1
+            if(this%sm1 /= inhead%sm1) iCountDiff = iCountDiff + 1
+            if(this%em1 /= inhead%em1) iCountDiff = iCountDiff + 1
+            if(this%sp1 /= inhead%sp1) iCountDiff = iCountDiff + 1
+            if(this%ep1 /= inhead%ep1) iCountDiff = iCountDiff + 1
+         endif
+         if(this%Ndim >= 2) then
+            if(this%sd2 /= inhead%sd2) iCountDiff = iCountDiff + 1
+            if(this%ed2 /= inhead%ed2) iCountDiff = iCountDiff + 1
+            if(this%sm2 /= inhead%sm2) iCountDiff = iCountDiff + 1
+            if(this%em2 /= inhead%em2) iCountDiff = iCountDiff + 1
+            if(this%sp2 /= inhead%sp2) iCountDiff = iCountDiff + 1
+            if(this%ep2 /= inhead%ep2) iCountDiff = iCountDiff + 1
+         endif
+
+         if(this%Ndim >= 3) then
+            if(this%sd3 /= inhead%sd3) iCountDiff = iCountDiff + 1
+            if(this%ed3 /= inhead%ed3) iCountDiff = iCountDiff + 1
+            if(this%sm3 /= inhead%sm3) iCountDiff = iCountDiff + 1
+            if(this%em3 /= inhead%em3) iCountDiff = iCountDiff + 1
+            if(this%sp3 /= inhead%sp3) iCountDiff = iCountDiff + 1
+            if(this%ep3 /= inhead%ep3) iCountDiff = iCountDiff + 1
+         endif
+      endif
+  
+      if(iCountDiff==0) lSameDim=.true.
+
+   end subroutine compareFieldHead
+
+   subroutine getFieldHeadDimD(this,sd1,ed1,sd2,ed2,sd3,ed3)
+      class(fieldhead) :: this
+
+      INTEGER,intent(out) :: sd1,ed1,sd2,ed2,sd3,ed3
+
+      sd1=this%sd1
+      ed1=this%ed1
+      sd2=this%sd2
+      ed2=this%ed2
+      sd3=this%sd3
+      ed3=this%ed3
+
+   end subroutine getFieldHeadDimD
+
+   subroutine getFieldHeadDimM(this,sm1,em1,sm2,em2,sm3,em3)
+      class(fieldhead) :: this
+
+      INTEGER,intent(out) :: sm1,em1,sm2,em2,sm3,em3
+
+      sm1=this%sm1
+      em1=this%em1
+      sm2=this%sm2
+      em2=this%em2
+      sm3=this%sm3
+      em3=this%em3
+
+   end subroutine getFieldHeadDimM
+
+   subroutine getFieldHeadDimP(this,sp1,ep1,sp2,ep2,sp3,ep3)
+      class(fieldhead) :: this
+
+      INTEGER,intent(out) :: sp1,ep1,sp2,ep2,sp3,ep3
+
+      sp1=this%sp1
+      ep1=this%ep1
+      sp2=this%sp2
+      ep2=this%ep2
+      sp3=this%sp3
+      ep3=this%ep3
+
+   end subroutine getFieldHeadDimP
+
+   subroutine getFieldHeadDim(this,sd1,ed1,sd2,ed2,sd3,ed3,&
+                                   sm1,em1,sm2,em2,sm3,em3,&
+                                   sp1,ep1,sp2,ep2,sp3,ep3)
+      class(fieldhead) :: this
+
+      INTEGER,intent(out) :: sd1,ed1,sd2,ed2,sd3,ed3
+      INTEGER,intent(out) :: sm1,em1,sm2,em2,sm3,em3
+      INTEGER,intent(out) :: sp1,ep1,sp2,ep2,sp3,ep3
+
+      call this%getFieldHeadDimD(sd1,ed1,sd2,ed2,sd3,ed3)
+
+      call this%getFieldHeadDimM(sm1,em1,sm2,em2,sm3,em3)
+
+      call this%getFieldHeadDimP( sp1,ep1,sp2,ep2,sp3,ep3)
+
+   end subroutine getFieldHeadDim
 
 end module wrfjedi_derived_types

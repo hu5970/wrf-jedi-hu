@@ -10,7 +10,7 @@ use config_mod
 use datetime_mod
 use wrfjedi_geom_mod
 use ufo_vars_mod
-use wrfjedi_kinds, only : kind_real
+use wrfjedi_kinds, only : kind_real,StrKIND
 use ioda_locs_mod
 use ufo_geovals_mod
 use wrfjedi_getvaltraj_mod, only: wrfjedi_getvaltraj
@@ -27,7 +27,16 @@ use wrfjedi_pool_routines, only : wrfjedi_pool_clone_pool, &
 
 use wrfjedi4da_mod, only : da_make_subpool_wrfjedi,       &
                            da_check_grid_content_wrfjedi, &
-                           da_zeros
+                           da_zeros,                      &
+                           da_self_mult,da_random,da_fldrms,&
+                           da_dot_product,da_operator,da_axpy,da_gpnorm
+
+
+use wrfjedi_derived_types, only: field0DReal,field0DInteger, &
+                                 field1DReal,field1DInteger, &
+                                 field2DReal,field2DInteger, &
+                                 field3DReal,field3DInteger, &
+                                 field4DReal
 
 !use wrfjedi_dmpar
 !use wrfjedi_derived_types
@@ -68,6 +77,7 @@ type :: wrfjedi_field
   type (wrfjedi_pool_type), pointer  :: subFields   !---> state variables (to be analyzed with real space saved)
   type (wrfjedi_pool_type), pointer  :: auxFields   !---> auxiliary variables, such as pressure, t2m, u10, v10, Tsfc (No real space)
 !  type (MPAS_Clock_type), pointer :: clock
+  integer :: nf_aux
 end type wrfjedi_field
 
 #define LISTED_TYPE wrfjedi_field
@@ -133,10 +143,11 @@ subroutine create(self, geom, vars)
     call wrfjedi_pool_create_pool(self % subFields, nfields)
     call wrfjedi_pool_clone_pool(self % subFieldsBk, self % subFields)
 !    call pool_print_members(self % subFields, 'subFields')
-    call zeros(self) !-- set zero for self % subFields
+!    call zeros(self) !-- set zero for self % subFields
 !    call pool_print_members(self % subFields, 'subFields')
 
     !--- TODO: aux test: BJJ  !- get this from json ???
+    self % nf_aux = nf_aux
     allocate(fldnames_aux(nf_aux))
     fldnames_aux = [ character(len=22) :: "P_TOP","ZNU","ZNW","XLAT","XLONG","LOWLYR","PHP",&
                                           "MUB","Q2","T2","U10","V10" ]
@@ -161,12 +172,15 @@ subroutine delete(self)
    integer :: ierr = 0 
   
    if (allocated(self % fldnames)) deallocate(self % fldnames)
+   if (associated(self % subFieldsBk)) then
+      write(*,*)'--> deallocate subFieldsBk Pool'
+      call wrfjedi_pool_destroy_pool(self % subFieldsBk)
+   end if
    if (associated(self % subFields)) then
       write(*,*)'--> deallocate subFields Pool'
-!      call wrfjedi_pool_empty_pool(self % subFieldsBk)
-      call wrfjedi_pool_destroy_pool(self % subFieldsBk)
+! this one needs set to .true. to release memory allocated by array
 !      call wrfjedi_pool_empty_pool(self % subFields)
-      call wrfjedi_pool_destroy_pool(self % subFields)
+      call wrfjedi_pool_destroy_pool(self % subFields, .true.)
    end if
    if (associated(self % auxFields)) then
       write(*,*)'--> deallocate auxFields Pool'
@@ -197,7 +211,7 @@ subroutine random(self)
    implicit none
    type(wrfjedi_field), intent(inout) :: self
    
-!   call da_random(self % subFields)
+   call da_random(self % subFields)
 
 end subroutine random
 
@@ -218,15 +232,19 @@ subroutine copy(self,rhs)
    ! Duplicate the members of rhs into self and do a deep copy
    ! of the fields from self % subFields to rhs % subFields
 !   call wrfjedi_pool_empty_pool(self % subFields)
-!   call wrfjedi_pool_destroy_pool(self % subFields)
-!   self % nf = rhs % nf
-!   call wrfjedi_pool_create_pool(self % subFields,self % nf)
-!   call wrfjedi_pool_clone_pool(rhs % subFields, self % subFields)
+   call wrfjedi_pool_destroy_pool(self % subFields)
+   self % nf = rhs % nf
+   call wrfjedi_pool_create_pool(self % subFields,self % nf)
+   call wrfjedi_pool_clone_pool(rhs % subFields, self % subFields)
+
+   call wrfjedi_pool_destroy_pool(self % subFieldsBk)
+   call wrfjedi_pool_create_pool(self % subFieldsBk,self % nf)
+   call wrfjedi_pool_clone_pool(rhs % subFieldsBk, self % subFieldsBk)
 
 !   call wrfjedi_pool_empty_pool(self % auxFields)
-!   call wrfjedi_pool_destroy_pool(self % auxFields)
-!   call wrfjedi_pool_create_pool(self % auxFields,nf_aux)
-!   call wrfjedi_pool_clone_pool(rhs % auxFields, self % auxFields)
+   call wrfjedi_pool_destroy_pool(self % auxFields)
+   call wrfjedi_pool_create_pool(self % auxFields,nf_aux)
+   call wrfjedi_pool_clone_pool(rhs % auxFields, self % auxFields)
 
    ! We should consider adding a subroutine just updating the fields
    ! call wrfjedi_pool_copy_fied() 
@@ -242,10 +260,10 @@ subroutine self_add(self,rhs)
    implicit none
    type(wrfjedi_field), intent(inout) :: self
    type(wrfjedi_field), intent(in)    :: rhs
-!   character(len=StrKIND) :: kind_op
+   character(len=StrKIND) :: kind_op
 
-!   kind_op = 'add'
-!   call da_operator(trim(kind_op), self % subFields, rhs % subFields)
+   kind_op = 'add'
+   call da_operator(trim(kind_op), self % subFields, rhs % subFields)
 
 end subroutine self_add
 
@@ -256,10 +274,10 @@ subroutine self_schur(self,rhs)
    implicit none
    type(wrfjedi_field), intent(inout) :: self
    type(wrfjedi_field), intent(in)    :: rhs
-!   character(len=StrKIND) :: kind_op
+   character(len=StrKIND) :: kind_op
 
-!   kind_op = 'schur'
-!   call da_operator(trim(kind_op), self % subFields, rhs % subFields)
+   kind_op = 'schur'
+   call da_operator(trim(kind_op), self % subFields, rhs % subFields)
 
 end subroutine self_schur
 
@@ -270,10 +288,10 @@ subroutine self_sub(self,rhs)
    implicit none
    type(wrfjedi_field), intent(inout) :: self
    type(wrfjedi_field), intent(in)    :: rhs
-!   character(len=StrKIND) :: kind_op
+   character(len=StrKIND) :: kind_op
 
-!   kind_op = 'sub'
-!   call da_operator(trim(kind_op), self % subFields, rhs % subFields)
+   kind_op = 'sub'
+   call da_operator(trim(kind_op), self % subFields, rhs % subFields)
 
 end subroutine self_sub
 
@@ -285,7 +303,7 @@ subroutine self_mul(self,zz)
    type(wrfjedi_field),     intent(inout) :: self
    real(kind=kind_real), intent(in)    :: zz
 
-!   call da_self_mult(self % subFields, zz)
+   call da_self_mult(self % subFields, zz)
 
 end subroutine self_mul
 
@@ -298,7 +316,7 @@ subroutine axpy(self,zz,rhs)
    real(kind=kind_real), intent(in)    :: zz
    type(wrfjedi_field),     intent(in)    :: rhs
 
-!   call da_axpy(self % subFields, rhs % subFields, zz)
+   call da_axpy(self % subFields, rhs % subFields, zz)
 
 end subroutine axpy
 
@@ -311,6 +329,7 @@ subroutine dot_prod(fld1,fld2,zprod)
    real(kind=kind_real), intent(inout) :: zprod
 
 !   call da_dot_product(fld1 % subFields, fld2 % subFields, fld1 % geom % domain % dminfo, zprod)
+   call da_dot_product(fld1 % subFields, fld2 % subFields, zprod)
 
 end subroutine dot_prod
 
@@ -330,23 +349,35 @@ subroutine add_incr(self,rhs)
    implicit none
    type(wrfjedi_field), intent(inout) :: self !< state
    type(wrfjedi_field), intent(in)    :: rhs  !< increment
-!   character(len=StrKIND) :: kind_op
+   character(len=StrKIND) :: kind_op
 
-!   type (wrfjedi_pool_type), pointer :: state, diag, mesh
-!   type (field2DReal), pointer :: field2d_t, field2d_p, field2d_qv, field2d_uRz, field2d_uRm, &
-!                                  field2d_th, field2d_rho, field2d_u, field2d_u_inc
+   type (wrfjedi_pool_type), pointer :: state, diag, mesh
+   type (field2DReal), pointer :: field2d_t, field2d_p, field2d_qv, field2d_uRz, field2d_uRm, &
+                                  field2d_th, field2d_rho, field2d_u, field2d_u_inc
 
-   ! GD: I don''t see any difference than for self_add other than subFields can contain
-   ! different variables than wrfjedi_field and the resolution of incr can be different. 
+   integer :: iCount,i
 
-!   if (self%geom%nCells==rhs%geom%nCells .and. self%geom%nVertLevels==rhs%geom%nVertLevels) then
-!      !NOTE: first, get full state of "subFields" variables
-!      kind_op = 'add'
-!      call da_operator(trim(kind_op), self % subFields, rhs % subFields)
+   iCount=0
+   if(self%geom%max_dom /= rhs%geom%max_dom) iCount = iCount + 1
+   if(iCount == 0) then
+      do i=1,self%geom%max_dom
+         if(self%geom%e_we(i) /= rhs%geom%e_we(i)) iCount = iCount + 1
+         if(self%geom%e_sn(i) /= rhs%geom%e_sn(i)) iCount = iCount + 1
+         if(self%geom%e_vert(i) /= rhs%geom%e_vert(i)) iCount = iCount + 1
+      enddo
+   endif
 
-      !NOTE: second, also update variables which are closely related to MPAS prognostic vars.
-      !  update theta from temperature and pressure
-      !  update rho   from temperature, pressure, and index_qv
+  ! GD: I don''t see any difference than for self_add other than subFields can contain
+  ! different variables than wrfjedi_field and the resolution of incr can be different. 
+
+   if (iCount==0) then
+      !NOTE: first, get full state of "subFields" variables
+      kind_op = 'add'
+      call da_operator(trim(kind_op), self % subFields, rhs % subFields)
+
+     !NOTE: second, also update variables which are closely related to MPAS prognostic vars.
+     !  update theta from temperature and pressure
+     !  update rho   from temperature, pressure, and index_qv
 !      call wrfjedi_pool_get_field(self % subFields,            'temperature', field2d_t)
 !      call wrfjedi_pool_get_field(self % subFields,               'pressure', field2d_p)
 !      call wrfjedi_pool_get_field(self % subFields,               'index_qv', field2d_qv)
@@ -354,36 +385,29 @@ subroutine add_incr(self,rhs)
 !      call wrfjedi_pool_get_field(self % subFields, 'uReconstructMeridional', field2d_uRm)
 !      call wrfjedi_pool_get_field(self % auxFields,                  'theta', field2d_th)
 !      call wrfjedi_pool_get_field(self % auxFields,                    'rho', field2d_rho)
-
+!
 !      field2d_th % array(:,:) = field2d_t % array(:,:) * &
 !                 ( 100000.0_kind_real / field2d_p % array(:,:) ) ** ( rgas / cp )
 !      write(*,*) 'add_inc: theta min/max = ', minval(field2d_th % array), maxval(field2d_th % array)
 !      field2d_rho % array(:,:) = field2d_p % array(:,:) /  ( rgas * field2d_t % array(:,:) * &
 !                 ( 1.0_kind_real + (rv/rgas - 1.0_kind_real) * field2d_qv % array(:,:) ) )
 !      write(*,*) 'add_inc: rho min/max = ', minval(field2d_rho % array), maxval(field2d_rho % array)
-
-      !  update u     from uReconstructZonal and uReconstructMeridional "incrementally"
+!
+!     !  update u     from uReconstructZonal and uReconstructMeridional "incrementally"
 !      call wrfjedi_pool_get_field(self % auxFields,                      'u', field2d_u)
 !      call wrfjedi_pool_get_field( rhs % subFields,      'uReconstructZonal', field2d_uRz)
 !      call wrfjedi_pool_get_field( rhs % subFields, 'uReconstructMeridional', field2d_uRm)
 !      call wrfjedi_pool_get_field( rhs % auxFields,                      'u', field2d_u_inc)
 !      write(*,*) 'add_inc: u_inc min/max = ', minval(field2d_uRz % array), maxval(field2d_uRz % array)
 !      write(*,*) 'add_inc: v_inc min/max = ', minval(field2d_uRm % array), maxval(field2d_uRm % array)
-
-!      call uv_cell_to_edges(self % geom % domain, field2d_uRz, field2d_uRm, field2d_u_inc, &
-!                 self%geom%latCell, self%geom%lonCell, self%geom%nCellsSolve, &
-!                 self%geom%edgeNormalVectors, self%geom%nEdgesOnCell, self%geom%edgesOnCell, &
-!                 self%geom%nVertLevels)
 !      write(*,*) 'add_inc: u_guess min/max = ', minval(field2d_u % array), maxval(field2d_u % array)
 !      write(*,*) 'add_inc: u_inc min/max = ', minval(field2d_u_inc % array), maxval(field2d_u_inc % array)
 !      field2d_u % array(:,:) = field2d_u % array(:,:) + field2d_u_inc % array(:,:)
 !      write(*,*) 'add_inc: u_analy min/max = ', minval(field2d_u % array), maxval(field2d_u % array)
-!
-!      ! TODO: DO we need HALO exchange here or in ModelMPAS::initialize for model integration?
-!
-!   else
-!      call abor1_ftn("wrfjedi_fields:add_incr: dimension mismatch")
-!   endif
+
+   else
+      call abor1_ftn("wrfjedi_fields:add_incr: dimension mismatch")
+   endif
 
    return
 
@@ -397,19 +421,27 @@ subroutine diff_incr(lhs,x1,x2)
    type(wrfjedi_field), intent(inout) :: lhs
    type(wrfjedi_field), intent(in)    :: x1
    type(wrfjedi_field), intent(in)    :: x2
-!   character(len=StrKIND) :: kind_op
+   character(len=StrKIND) :: kind_op
+
+   integer :: iCount,i
+
+   iCount=0
+   if(x1%geom%max_dom /= x2%geom%max_dom) iCount = iCount + 1
+   if(iCount == 0) then
+      do i=1,x1%geom%max_dom
+         if(x1%geom%e_we(i) /= x2%geom%e_we(i)) iCount = iCount + 1
+         if(x1%geom%e_sn(i) /= x2%geom%e_sn(i)) iCount = iCount + 1
+         if(x1%geom%e_vert(i) /= x2%geom%e_vert(i)) iCount = iCount + 1
+      enddo
+   endif
 
    call zeros(lhs)
-!   if (x1%geom%nCells==x2%geom%nCells .and. x1%geom%nVertLevels==x2%geom%nVertLevels) then
-!     if (lhs%geom%nCells==x1%geom%nCells .and. lhs%geom%nVertLevels==x1%geom%nVertLevels) then
-!        kind_op = 'sub'
-!        call da_operator(trim(kind_op), lhs % subFields, x1 % subFields, x2 % subFields)
-!     else
-!       call abor1_ftn("wrfjedi_fields:diff_incr: dimension mismatch between the two variables.")
-!     endif
-!   else
-!     call abor1_ftn("wrfjedi_fields:diff_incr: states not at same resolution")
-!   endif
+   if (iCount == 0) then
+     kind_op = 'sub'
+     call da_operator(trim(kind_op), lhs % subFields, x1 % subFields, x2 % subFields)
+   else
+     call abor1_ftn("wrfjedi_fields:diff_incr: states not at same resolution")
+   endif
 
    return
 
@@ -423,13 +455,23 @@ subroutine change_resol(fld,rhs)
    type(wrfjedi_field), intent(inout) :: fld
    type(wrfjedi_field), intent(in)    :: rhs
 
+   integer :: iCount,i
+   iCount=0
+   if(fld%geom%max_dom /= rhs%geom%max_dom) iCount = iCount + 1
+   if(iCount == 0) then
+      do i=1,fld%geom%max_dom
+         if(fld%geom%e_we(i) /= rhs%geom%e_we(i)) iCount = iCount + 1
+         if(fld%geom%e_sn(i) /= rhs%geom%e_sn(i)) iCount = iCount + 1
+         if(fld%geom%e_vert(i) /= rhs%geom%e_vert(i)) iCount = iCount + 1
+      enddo
+   endif
    ! FIXME: We just copy rhs to fld for now. Need an actual interpolation routine later. (SH)
-!   if (fld%geom%nCells == rhs%geom%nCells .and.  fld%geom%nVertLevels == rhs%geom%nVertLevels) then
-!     call copy(fld, rhs)
-!   else
-!     write(0,*) fld%geom%nCells, rhs%geom%nCells, fld%geom%nVertLevels, rhs%geom%nVertLevels
-!     call abor1_ftn("wrfjedi_fields:field_resol: dimension mismatch")
-!   endif
+   if (iCount==0) then
+     call copy(fld, rhs)
+   else
+     write(*,*) fld%geom%e_we(1),fld%geom%e_sn(1),fld%geom%e_vert(1)
+     call abor1_ftn("wrfjedi_fields:field_resol: dimension mismatch")
+   endif
 
 end subroutine change_resol
 
@@ -522,7 +564,7 @@ subroutine read_file(fld, c_conf, vdate)
    write(*,*) '=====>  read sdate ',sdate
    temp_filename = config_get_string(c_conf,len(temp_filename),&
                       "filename")
-   write(*,*)'Reading ',trim(temp_filename)
+   write(*,*)'===> Reading ',trim(temp_filename)
    !temp_filename = 'restart.$Y-$M-$D_$h.$m.$s.nc'
    ! GD look at oops/src/util/datetime_mod.F90
    ! we probably need to extract from vdate a string to enforce the reading ..
@@ -542,17 +584,15 @@ use duration_mod
    type(wrfjedi_field), intent(inout) :: fld    !< Fields
    type(c_ptr),      intent(in)    :: c_conf !< Configuration
    type(datetime),   intent(inout) :: vdate  !< DateTime
-!   character(len=20)       :: validitydate
-!   integer                 :: ierr
-!   type (MPAS_Time_type)   :: fld_time, write_time
-!   character (len=StrKIND) :: dateTimeString, dateTimeString2, streamID, time_string, filename, temp_filename
+   character(len=20)       :: validitydate
+   integer                 :: ierr
+   character (len=StrKIND) ::  temp_filename
 
-!   call datetime_to_string(vdate, validitydate)
-!   write(*,*)'==> write fields at ',trim(validitydate)
-!   temp_filename = config_get_string(c_conf,len(temp_filename)&
-!                      ,"filename")
-!   write(*,*)'==> writing ',trim(temp_filename)
-   write(*,*)'==> writing '
+   call datetime_to_string(vdate, validitydate)
+   write(*,*)'==> write fields at ',trim(validitydate)
+   temp_filename = config_get_string(c_conf,len(temp_filename)&
+                      ,"filename")
+   write(*,*)'==> writing ',trim(temp_filename)
 
 end subroutine write_file
 
@@ -565,8 +605,15 @@ subroutine gpnorm(fld, nf, pstat)
    integer,              intent(in)  :: nf
    real(kind=kind_real), intent(out) :: pstat(3, nf)
 
+   real(kind=kind_real), allocatable :: pstat_aux(:,:)
+
    pstat=0.0
 !   call da_gpnorm(fld % subFields, fld % geom % domain % dminfo, fld%nf, pstat) 
+   call da_gpnorm(fld % subFields, fld%nf, pstat) 
+!   call da_gpnorm(fld % subFieldsBk, fld%nf, pstat) 
+!   allocate(pstat_aux(3, fld%nf_aux))
+!   call da_gpnorm(fld % auxFields, fld%nf_aux, pstat_aux) 
+!   deallocate(pstat_aux)
 
 end subroutine gpnorm
 
@@ -579,6 +626,7 @@ subroutine fldrms(fld, prms)
    real(kind=kind_real), intent(out) :: prms
 
 !   call da_fldrms(fld % subFields, fld % geom % domain % dminfo, prms)
+   call da_fldrms(fld % subFields, prms)
 
 end subroutine fldrms
 

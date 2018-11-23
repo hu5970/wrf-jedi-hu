@@ -579,20 +579,22 @@ end subroutine wrfjedi_field_getvalues_ad_c
 
 ! ------------------------------------------------------------------------------
 
-subroutine wrfjedi_field_sizes_c(c_key_self,nc,nf) bind(c,name='wrfjedi_field_sizes_f90')
+subroutine wrfjedi_field_sizes_c(c_key_self,nx,ny,nz,nf) bind(c,name='wrfjedi_field_sizes_f90')
 
 use iso_c_binding
 use wrfjedi_fields_mod
 
 implicit none
 integer(c_int), intent(in) :: c_key_self
-integer(c_int), intent(inout) :: nc,nf
+integer(c_int), intent(inout) :: nx,ny,nz,nf
 type(wrfjedi_field), pointer :: self
 
 call wrfjedi_field_registry%get(c_key_self,self)
 
 nf = self%nf
-nc = 0
+nx = self%geom%e_we(1)
+ny = self%geom%e_sn(1)
+nz = self%geom%e_vert(1)
 
 end subroutine wrfjedi_field_sizes_c
 
