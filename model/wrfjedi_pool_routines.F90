@@ -47,6 +47,7 @@ module wrfjedi_pool_routines
    public ::  wrfjedi_pool_get_next_member, &
               wrfjedi_pool_begin_iteration
 !
+   public ::  wrfjedi_duplicate_fieldlist
 !
 !
    integer, parameter :: WRFJEDI_POOL_TABLE_SIZE = 128

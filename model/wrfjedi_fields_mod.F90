@@ -11,6 +11,7 @@ use datetime_mod
 use wrfjedi_geom_mod
 use ufo_vars_mod
 use wrfjedi_kinds, only : kind_real,StrKIND
+use wrfjedi_kinds, only : RKIND
 use ioda_locs_mod
 use ufo_geovals_mod
 use wrfjedi_getvaltraj_mod, only: wrfjedi_getvaltraj
@@ -22,6 +23,7 @@ use wrfjedi_pool_routines, only : wrfjedi_pool_type, &
                                   wrfjedi_pool_get_array
 use wrfjedi_pool_routines, only : wrfjedi_pool_destroy_pool
 use wrfjedi_pool_routines, only : pool_print_members
+use wrfjedi_pool_routines, only : wrfjedi_duplicate_fieldlist
 use wrfjedi_pool_routines, only : wrfjedi_pool_clone_pool, &
                                   wrfjedi_pool_create_pool
 
@@ -37,6 +39,7 @@ use wrfjedi_derived_types, only: field0DReal,field0DInteger, &
                                  field2DReal,field2DInteger, &
                                  field3DReal,field3DInteger, &
                                  field4DReal
+
 
 !use wrfjedi_dmpar
 !use wrfjedi_derived_types
@@ -64,6 +67,7 @@ public :: wrfjedi_field, &
         & ug_coord, field_to_ug, field_from_ug, &
         & analytic_IC
 public :: wrfjedi_field_registry
+public :: wrfjedi_duplicate_field
 
 ! ------------------------------------------------------------------------------
 
@@ -90,6 +94,32 @@ type(registry_t) :: wrfjedi_field_registry
 
 integer, parameter :: nf_aux = 12
 
+   interface wrfjedi_duplicate_field
+      module procedure wrfjedi_duplicate_field0d_real
+      module procedure wrfjedi_duplicate_field1d_real
+      module procedure wrfjedi_duplicate_field2d_real
+      module procedure wrfjedi_duplicate_field3d_real
+!      module procedure wrfjedi_duplicate_field4d_real
+!      module procedure wrfjedi_duplicate_field0d_integer
+!      module procedure wrfjedi_duplicate_field1d_integer
+!      module procedure wrfjedi_duplicate_field2d_integer
+!      module procedure wrfjedi_duplicate_field3d_integer
+   end interface
+
+   interface wrfjedi_release_duplicate_field
+      module procedure wrfjedi_release_duplicate_field0d_real
+      module procedure wrfjedi_release_duplicate_field1d_real
+      module procedure wrfjedi_release_duplicate_field2d_real
+      module procedure wrfjedi_release_duplicate_field3d_real
+!      module procedure wrfjedi_duplicate_field4d_real
+!      module procedure wrfjedi_duplicate_field0d_integer
+!      module procedure wrfjedi_duplicate_field1d_integer
+!      module procedure wrfjedi_duplicate_field2d_integer
+!      module procedure wrfjedi_duplicate_field3d_integer
+   end interface
+
+
+
 ! ------------------------------------------------------------------------------
 contains
 ! ------------------------------------------------------------------------------
@@ -105,7 +135,7 @@ subroutine create(self, geom, vars)
 
     type(wrfjedi_field), intent(inout)       :: self
     type(wrfjedi_geom),  intent(in), pointer :: geom
-    type(ufo_vars),   intent(in)          :: vars
+    type(ufo_vars),      intent(in)          :: vars
 
     integer :: nsize, nfields
     integer :: ierr!, ii
@@ -143,7 +173,7 @@ subroutine create(self, geom, vars)
     call wrfjedi_pool_create_pool(self % subFields, nfields)
     call wrfjedi_pool_clone_pool(self % subFieldsBk, self % subFields)
 !    call pool_print_members(self % subFields, 'subFields')
-!    call zeros(self) !-- set zero for self % subFields
+    call zeros(self) !-- set zero for self % subFields
 !    call pool_print_members(self % subFields, 'subFields')
 
     !--- TODO: aux test: BJJ  !- get this from json ???
@@ -634,30 +664,47 @@ end subroutine fldrms
 
 subroutine getvalues(fld, locs, vars, gom, traj)
 
-!   use type_bump, only: bump_type
+   use type_bump, only: bump_type
 !   use mpas2ufo_vars_mod !, only: usgs_to_crtm_mw, wrf_to_crtm_soil
 
    implicit none
-   type(wrfjedi_field),                        intent(in)    :: fld
+   type(wrfjedi_field),                     intent(in)    :: fld
    type(ioda_locs),                         intent(in)    :: locs
    type(ufo_vars),                          intent(in)    :: vars
    type(ufo_geovals),                       intent(inout) :: gom
    type(wrfjedi_getvaltraj), optional, target, intent(inout) :: traj
    
    character(len=*), parameter :: myname = 'getvalues'
+ 
+   type (wrfjedi_pool_type), pointer  :: bkpool
+   type (wrfjedi_pool_type), pointer  :: auxpool
 
-!   type(bump_type), target  :: bump
-!   type(bump_type), pointer :: pbump
-!   logical,         target  :: bump_alloc
-!   logical,         pointer :: pbumpa
+   real (kind=RKIND), pointer :: r0d_ptr_a, r0d_ptr_b
+   real (kind=RKIND), dimension(:), pointer :: r1d_ptr_a, r1d_ptr_b
+   real (kind=RKIND), dimension(:,:), pointer :: r2d_ptr_a, r2d_ptr_b
+   real (kind=RKIND), dimension(:,:,:), pointer :: r3d_ptr_a, r3d_ptr_b
+
+   type (field2DReal), pointer :: field2d,field2d_src
+   type (field3DReal), pointer :: field3d,field3d_src
+   type (field2DInteger), pointer :: ifield2d
+   integer :: nx,ny,nz,domain_id
+   INTEGER :: sp1,ep1,sp2,ep2,sp3,ep3
    
-!   integer :: ii, jj, ji, jvar, jlev, ngrid, nobs, ivar
-!   real(kind=kind_real), allocatable :: mod_field(:,:), mod_field_ext(:,:)
-!   real(kind=kind_real), allocatable :: obs_field(:,:)
+
+
+
+   type(bump_type), target  :: bump
+   type(bump_type), pointer :: pbump
+   logical,         target  :: bump_alloc
+   logical,         pointer :: pbumpa
+   
+   real(kind=kind_real), allocatable :: mod_field(:,:), mod_field_ext(:,:)
+   real(kind=kind_real), allocatable :: obs_field(:,:)
 !   real(kind=kind_real), allocatable :: tmp_field(:,:)  !< for wspeed/wdir
-   
+    
 !   type (wrfjedi_pool_type), pointer :: pool_ufo  !< pool with ufo variables
 !   type (wrfjedi_pool_iterator_type) :: poolItr
+
 !   real (kind=kind_real), pointer :: r0d_ptr_a, r0d_ptr_b
 !   real (kind=kind_real), dimension(:), pointer :: r1d_ptr_a, r1d_ptr_b
 !   real (kind=kind_real), dimension(:,:), pointer :: r2d_ptr_a, r2d_ptr_b
@@ -671,11 +718,186 @@ subroutine getvalues(fld, locs, vars, gom, traj)
 !
 !   real(kind=kind_real) :: wdir           !< for wind direction
 !   integer :: ivarw, ivarl, ivari, ivars  !< for sfc fraction indices
+   integer :: i,j,k,ivar
+   integer :: ii, jj, ji, jvar, jlev, ngrid, nobs
+
+   write(*,*) 'horizontal interpolation ----'
+
+   bkpool=>fld%subFieldsBk
+   if(.not.associated(bkpool)) then
+      write(*, *) ' this bk pool pointer is not associated with any pool yet'
+      return
+   endif
+!   call pool_print_members(bkpool, 'interp:bkpool')
+
+   auxpool=>fld%auxFields
+   if(.not.associated(auxpool)) then
+      write(*, *) ' this aux pool pointer is not associated with any pool yet'
+      return
+   endif
+!   call pool_print_members(auxpool, 'interp:auxpool')
 
 
    ! Get grid dimensions and checks
    ! ------------------------------
+   domain_id=1
+   call geo_info(fld%geom,domain_id, nx,ny,nz)
+   write(*,*) 'geo info =',nx,ny,nz
+   allocate(field3d)
+   call wrfjedi_pool_get_field(bkpool, 'THM_1', field3d)
+   sp1=field3d%sp1
+   ep1=field3d%ep1
+   sp2=field3d%sp2
+   ep2=field3d%ep2
+   sp3=field3d%sp3
+   ep3=field3d%ep3
+   deallocate(field3d)
+   write(*,*) 'field3d patch dimension =',sp1,ep1,sp2,ep2,sp3,ep3
+
+   ngrid = nx*ny
+   nobs = locs%nlocs
+   write(*,*)'interp: ngrid, nobs = : ',ngrid, nobs
+   call interp_checks("nl", fld, locs, vars, gom)
+
+   pbump => bump
+   bump_alloc = .false.
+   pbumpa => bump_alloc
+
+   if (.not. pbumpa) then
+    ! Calculate interpolation weight using BUMP
+    ! ------------------------------------------
+      write(*,*)'call initialize_interp(...)'
+      allocate(field2d,field2d_src)
+      call wrfjedi_pool_get_field(auxpool, 'XLONG', field2d)
+      call wrfjedi_pool_get_field(auxpool, 'XLAT' , field2d_src)
+      call initialize_interp(fld%geom, locs, pbump,field2d,field2d_src)
+      deallocate(field2d,field2d_src)
+      pbumpa = .true.
+      write(*,*)'interp: after initialize_interp'
+   endif
+
+   gom%linit = .true.
+
+   !Create Buffer for interpolated values
+   !--------------------------------------
+   allocate(mod_field(ngrid,1))
+   allocate(obs_field(nobs,1))
+
+
+!  check varaibles
+!   write(*,*)'interp: vars%nv       : ',vars%nv
+!   do i=1,vars%nv
+!      write(*,*)'interp: vars%fldnames : ',trim(vars%fldnames(i))
+!   enddo
+!  check location
+!   write(*,*) 'interp: obs number in locs=',locs%nlocs
+!   do i=1,locs%nlocs
+!      write(*,*) i,locs%lat(i),locs%lon(i),locs%time(i),locs%indx(i)
+!   enddo
+! check gom
+!   write(*,*) 'interp: nobs, nvar =', gom%nobs,gom%nvar
+!   write(*,*) 'interp: variables=',gom%variables%nv
+!   write(*,*) 'interp: variables name =',gom%variables%fldnames
+!   write(*,*) 'interp: lalloc=',gom%lalloc
+!   write(*,*) 'interp: linit=',gom%linit
+!   do i=1,vars%nv
+!     write(*,*) i, gom%geovals(i)%nval,gom%geovals(i)%nobs,allocated(gom%geovals(i)%vals)
+!   enddo
+
+   do ivar=1,vars%nv
+      write(*,*)'interp: vars%fldnames : ',trim(vars%fldnames(ivar))
+
+      select case (trim(vars%fldnames(ivar)))
+
+      case ( "virtual_temperature" ) !-var_tv
+
+        allocate(field3d)
+!        call wrfjedi_pool_get_array(bkpool, 'THM_1', field3d) !< get temperature
+        call wrfjedi_pool_get_field(bkpool, 'THM_1', field3d)
+        do k=1,nz
+           write(*,*) 'MIN/MAX of temperature=',k,minval(field3d%array(sp1:ep1,k,sp3:ep3)), &
+                                                  maxval(field3d%array(sp1:ep1,k,sp3:ep3))
+        enddo
+
+!        allocate(field3d_src)
+!        call wrfjedi_pool_get_field(bkpool, 'THM_1', field3d_src)
+!        call wrfjedi_duplicate_field(field3d_src, field3d)
+!        deallocate(field3d_src)   
+!        call wrfjedi_release_duplicate_field(field3d)   
+
+        if( .not. allocated(gom%geovals(ivar)%vals) )then
+           gom%geovals(ivar)%nval = fld%geom%e_vert(domain_id)
+           if(trim(gom%variables%fldnames(ivar)).eq.var_prsi) &
+                gom%geovals(ivar)%nval = fld%geom%e_vert(domain_id) + 1 
+           allocate( gom%geovals(ivar)%vals(gom%geovals(ivar)%nval,nobs) )
+           write(*,*) ' gom%geovals(n)%vals allocated',gom%geovals(ivar)%nval,nobs
+        endif
+        do jlev = 1, gom%geovals(ivar)%nval
+           ji=0
+           do jj = sp3,ep3
+              do ii = sp1,ep1
+                 ji=ji+1
+                 mod_field(ji,1) = field3d%array(ii,jlev,jj)
+              enddo
+           enddo
+           write(*,*) 'MIN/MAX of temperature=',jlev,maxval(mod_field),minval(mod_field)
+           call pbump%apply_obsop(mod_field,obs_field)
+           gom%geovals(ivar)%vals(gom%geovals(ivar)%nval - jlev + 1,:) = obs_field(:,1)
+        end do
+
+        deallocate(field3d)   
+
+      case ("atmosphere_ln_pressure_coordinate") !-var_prsl
+! get surface pressure
+        call wrfjedi_pool_get_array(bkpool, 'MU_1', r2d_ptr_a) !< get temperature
+        call wrfjedi_pool_get_array(auxpool, 'MUB', r2d_ptr_b) !< get qv
+!        write(*,*) 'MIN/MAX of mu_1=',minval(r2d_ptr_a),maxval(r2d_ptr_a)
+!        write(*,*) 'MIN/MAX of mu_b=',minval(r2d_ptr_b),maxval(r2d_ptr_b)
+
+        allocate(field2d_src)
+        call wrfjedi_pool_get_field(auxpool, 'MUB', field2d_src)
+        call wrfjedi_duplicate_field(field2d_src, field2d)
+        deallocate(field2d_src)   
+        field2d%array(:,:) = r2d_ptr_a(:,:) + r2d_ptr_b(:,:)
+        nullify(r2d_ptr_a)
+        nullify(r2d_ptr_b)
+        write(*,*) 'MIN/MAX of mu=',minval(field2d%array(sp1:ep1,sp2:ep2)),&
+                                    maxval(field2d%array(sp1:ep1,sp2:ep2))
+!
+        call wrfjedi_pool_get_array(auxpool, 'P_TOP', r0d_ptr_a)
+        call wrfjedi_pool_get_array(auxpool, 'ZNU', r1d_ptr_a) 
+        write(*,*) ' pressure top=',r0d_ptr_a
+
+        allocate(r2d_ptr_a(sp1:ep1,sp2:ep2))
+        do k=1,nz
+           do j=sp2,ep2
+              do i=sp1,ep1
+                 r2d_ptr_a(i,j)=r1d_ptr_a(k)*(field2d%array(i,j) - r0d_ptr_a) 
+              enddo
+           enddo
+           write(*,*) 'MIN/MAX of znu, P=',k, r1d_ptr_a(k),minval(r2d_ptr_a(sp1:ep1,sp2:ep2)),&
+                                         maxval(r2d_ptr_a(sp1:ep1,sp2:ep2))
+        enddo
+
+        deallocate(r2d_ptr_a)
+        call wrfjedi_release_duplicate_field(field2d)   
+
+      case ("air_pressure") !-var_prs
+
+
+      case default
+         write(*,*) 'Not processed in getvalues: ',trim(vars%fldnames(ivar))
+
+      end select
+
+   enddo
+
+
+   deallocate(mod_field)
+   deallocate(obs_field)
    write(*,*) '---- Leaving getvalues ---'
+   call abor1_ftn("wrfjedi_fields:getvalues:  debug stop point")
+
 end subroutine getvalues
 
 ! ------------------------------------------------------------------------------
@@ -738,37 +960,99 @@ end subroutine getvalues_ad
 
 ! ------------------------------------------------------------------------------
 
-subroutine initialize_interp(grid, locs, bump)
+subroutine initialize_interp(grid, locs, bump,field2dLon,field2dLat)
 
    use fckit_mpi_module, only: fckit_mpi_comm
    use wrfjedi_geom_mod, only: wrfjedi_geom
    use type_bump, only: bump_type
    
    implicit none
-   type(wrfjedi_geom),          intent(in)  :: grid
+   type(wrfjedi_geom),       intent(in)  :: grid
    type(ioda_locs),          intent(in)  :: locs
    type(bump_type), pointer, intent(out) :: bump
+   type (field2DReal), pointer,intent(in):: field2dLon,field2dLat
    
-!   type(fckit_mpi_comm) :: f_comm
-!
-!   logical, save :: interp_initialized = .FALSE.
-!   
-!   integer :: mod_nz,mod_num
-!   real(kind=kind_real), allocatable :: mod_lat(:), mod_lon(:) 
-!   
-!   real(kind=kind_real), allocatable :: area(:),vunit(:,:)
-!   logical, allocatable :: lmask(:,:)
-!
-!   integer, save :: bumpcount = 0
-!   character(len=5) :: cbumpcount
-!   character(len=17) :: bump_nam_prefix
+   type(fckit_mpi_comm) :: f_comm
+
+   logical, save :: interp_initialized = .FALSE.
    
-!!   integer :: ii, jj, ji, jvar, jlev
+   integer :: mod_nz,mod_num
+   real(kind=kind_real), allocatable :: mod_lat(:), mod_lon(:) 
+   real(kind=kind_real), allocatable :: area(:),vunit(:,:)
+   logical, allocatable :: lmask(:,:)
+
+   integer, save :: bumpcount = 0
+   character(len=5) :: cbumpcount
+   character(len=17) :: bump_nam_prefix
+  
+   integer :: domainid
+   integer :: sp1,ep1,sp2,ep2
+   integer :: ii, jj, ji, jvar, jlev
+   real(kind=kind_real) :: deg2rad
  
-!   f_comm = fckit_mpi_comm()
+   domainid=1
+   f_comm = fckit_mpi_comm()
+
+   sp1=field2dLon%sp1
+   ep1=field2dLon%ep1
+   sp2=field2dLon%sp2
+   ep2=field2dLon%ep2
+   
+   deg2rad = 3.1415926/180.000
 
    ! Each bump%nam%prefix must be distinct
    ! -------------------------------------
+
+   bumpcount = bumpcount + 1
+   write(cbumpcount,"(I0.2)") bumpcount
+   bump_nam_prefix = 'mpas_bump_data_'//cbumpcount
+
+   !Get the Solution dimensions
+   !---------------------------
+   mod_nz  = grid%e_vert(domainid)
+   mod_num = grid%e_sn(domainid)*grid%e_we(domainid)
+   write(*,*)'initialize_interp mod_num,obs_num = ', mod_num, mod_nz
+
+   !Calculate interpolation weight using BUMP
+   !------------------------------------------
+    allocate( mod_lat(mod_num), mod_lon(mod_num) )
+    ji=0
+    do jj=sp2,ep2
+       do ii=sp1,ep1
+          ji=ji+1
+          mod_lat(ji) = field2dLat%array( ii,jj ) !/ deg2rad !- to Degrees
+          mod_lon(ji) = field2dLon%array( ii,jj ) !/ deg2rad !- to Degrees
+       enddo
+    enddo
+
+    !Important namelist options
+    call bump%nam%init
+    bump%nam%obsop_interp = 'bilin'          ! Interpolation type (bilinear)
+
+    !Less important namelist options (should not be changed)
+    bump%nam%prefix       = bump_nam_prefix  ! Prefix for files output
+    bump%nam%new_obsop    = .true.
+
+    !Initialize geometry
+    allocate(area(mod_num))
+    allocate(vunit(mod_num,1))
+    allocate(lmask(mod_num,1))
+    area  = 1.0          ! Dummy area, unit [m^2]
+    vunit = 1.0          ! Dummy vertical unit
+    lmask = .true.       ! Mask
+
+    !Initialize BUMP
+!    call bump%setup_online(f_comm%communicator(),mod_num,1,1,1,mod_lon,mod_lat,area,vunit,lmask, &
+!                           nobs=locs%nlocs,lonobs=obs_lon,latobs=obs_lat)
+    call bump%setup_online(mod_num,1,1,1,mod_lon,mod_lat,area,vunit,lmask, &
+                           nobs=locs%nlocs,lonobs=locs%lon(:),latobs=locs%lat(:))
+
+    !Release memory
+    deallocate(area)
+    deallocate(vunit)
+    deallocate(lmask)
+    deallocate( mod_lat, mod_lon )
+
 end subroutine initialize_interp
 
 ! ------------------------------------------------------------------------------
@@ -785,9 +1069,52 @@ subroutine interp_checks(cop, fld, locs, vars, gom)
    integer :: jvar
    character(len=26) :: cinfo
    
-!   cinfo="wrfjedi_fields:checks "//cop//" : "
+   cinfo="wrfjedi_fields:checks "//cop//" : "
    
    !Check things are the sizes we expect
+   write(*,*)'interp_checks ',cinfo,' done'
+
+
+   !Check things are the sizes we expect
+   !------------------------------------
+   if (gom%nobs /= locs%nlocs ) then
+      call abor1_ftn(cinfo//"geovals wrong size")
+   endif
+   if( gom%nvar .ne. vars%nv )then
+      call abor1_ftn(cinfo//"nvar wrong size")
+   endif
+   if( .not. allocated(gom%geovals) )then
+      call abor1_ftn(cinfo//"geovals unallocated")
+   endif
+   if( size(gom%geovals) .ne. vars%nv )then
+      call abor1_ftn(cinfo//"geovals wrong size")
+   endif
+   if (cop/="tl" .and. cop/='nl') then
+      if (.not.gom%linit) then
+         call abor1_ftn(cinfo//"geovals not initialized")
+      endif
+
+      do jvar=1,vars%nv
+         if (allocated(gom%geovals(jvar)%vals)) then
+            if( gom%geovals(jvar)%nval .ne. fld%geom%e_vert(1))then
+               write(*,*) jvar, gom%geovals(jvar)%nval, fld%geom%e_vert
+               call abor1_ftn(cinfo//"nval wrong size")
+            endif
+            if( gom%geovals(jvar)%nobs .ne. locs%nlocs )then
+               call abor1_ftn(cinfo//"nobs wrong size")
+            endif
+            if( size(gom%geovals(jvar)%vals, 1) .ne. fld%geom%e_vert(1))then
+               call abor1_ftn(cinfo//"vals wrong size 1")
+            endif
+            if( size(gom%geovals(jvar)%vals, 2) .ne. locs%nlocs )then
+               call abor1_ftn(cinfo//"vals wrong size 2")
+            endif
+         else
+           call abor1_ftn(cinfo//"vals not allocated")
+         endif
+      enddo
+   endif
+
    write(*,*)'interp_checks ',cinfo,' done'
    
 end subroutine interp_checks
@@ -865,5 +1192,170 @@ subroutine field_from_ug(self, ug)
 end subroutine field_from_ug
 
 ! ------------------------------------------------------------------------------
+!***********************************************************************
+!
+!  routine wrfjedi_duplicate_field0d_real
+!
+!> \brief   WRFJEDI 0D real field duplication routine.
+!> \author  Ming Hu
+!> \date    12/04/18
+!> \details 
+!> Creates a duplicate of the source field.
+!
+!-----------------------------------------------------------------------
+   subroutine wrfjedi_duplicate_field0d_real(src, dst, copy_array_only) !{{{
+
+      implicit none
+
+      type (field0DReal), intent(in), target :: src     !< Input: Field to be duplicated
+      type (field0DReal), pointer :: dst                !< Output: Field to contain the duplicate
+      logical, intent(in), optional :: copy_array_only  !< Input: whether to assume that dst exists, and only copy array data
+
+      allocate(dst)
+      dst%fieldhead=src%fieldhead
+      allocate(dst%array)
+      dst%array=src%array
+
+   end subroutine wrfjedi_duplicate_field0d_real !}}}
+
+   subroutine wrfjedi_release_duplicate_field0d_real(dst) !{{{
+      implicit none
+      type (field0DReal), pointer :: dst                !< Output: Field to contain the duplicate
+
+      deallocate(dst%array)
+      deallocate(dst)
+
+   end subroutine wrfjedi_release_duplicate_field0d_real !}}}
+
+!***********************************************************************
+!
+!  routine wrfjedi_duplicate_field1d_real
+!
+!> \brief   WRFJEDI 1D real field duplication routine.
+!> \author  Ming Hu
+!> \date    12/04/18
+!> \details 
+!> Creates a duplicate of the source field.
+!
+!-----------------------------------------------------------------------
+   subroutine wrfjedi_duplicate_field1d_real(src, dst, copy_array_only) !{{{
+
+      implicit none
+
+      type (field1DReal), intent(in), target :: src     !< Input: Field to be duplicated
+      type (field1DReal), pointer :: dst                !< Output: Field to contain the duplicate
+      logical, intent(in), optional :: copy_array_only  !< Input: whether to assume that dst exists, and only copy array data
+
+      integer :: sm1,em1,sm2,em2,sm3,em3
+
+      allocate(dst)
+      dst%fieldhead=src%fieldhead
+      sm1=dst%sm1
+      em1=dst%em1
+      sm2=dst%sm2
+      em2=dst%em2
+      sm3=dst%sm3
+      em3=dst%em3
+
+      allocate(dst%array(sm1:em1))
+      dst%array=src%array
+
+   end subroutine wrfjedi_duplicate_field1d_real !}}}
+
+   subroutine wrfjedi_release_duplicate_field1d_real(dst) !{{{
+      implicit none
+      type (field1DReal), pointer :: dst
+
+      deallocate(dst%array)
+      deallocate(dst)
+
+   end subroutine wrfjedi_release_duplicate_field1d_real !}}}
+
+!***********************************************************************
+!
+!  routine wrfjedi_duplicate_field2d_real
+!
+!> \brief   WRFJEDI 2D real field duplication routine.
+!> \author  Ming Hu
+!> \date    12/04/18
+!> \details 
+!> Creates a duplicate of the source field.
+!
+!-----------------------------------------------------------------------
+   subroutine wrfjedi_duplicate_field2d_real(src, dst, copy_array_only) !{{{
+
+      implicit none
+
+      type (field2DReal), intent(in), target :: src     !< Input: Field to be duplicated
+      type (field2DReal), pointer :: dst                !< Output: Field to contain the duplicate
+      logical, intent(in), optional :: copy_array_only  !< Input: whether to assume that dst exists, and only copy array data
+
+      integer :: sm1,em1,sm2,em2,sm3,em3
+
+      allocate(dst)
+      dst%fieldhead=src%fieldhead
+      sm1=dst%sm1
+      em1=dst%em1
+      sm2=dst%sm2
+      em2=dst%em2
+      sm3=dst%sm3
+      em3=dst%em3
+
+      allocate(dst%array(sm1:em1,sm2:em2))
+      dst%array=src%array
+
+   end subroutine wrfjedi_duplicate_field2d_real !}}}
+
+   subroutine wrfjedi_release_duplicate_field2d_real(dst) !{{{
+      implicit none
+      type (field2DReal), pointer :: dst
+
+      deallocate(dst%array)
+      deallocate(dst)
+
+   end subroutine wrfjedi_release_duplicate_field2d_real !}}}
+!***********************************************************************
+!
+!  routine wrfjedi_duplicate_field3d_real
+!
+!> \brief   WRFJEDI 3D real field duplication routine.
+!> \author  Ming Hu
+!> \date    12/04/18
+!> \details 
+!> Creates a duplicate of the source field.
+!
+!-----------------------------------------------------------------------
+   subroutine wrfjedi_duplicate_field3d_real(src, dst, copy_array_only) !{{{
+
+      implicit none
+
+      type (field3DReal), intent(in), target :: src     !< Input: Field to be duplicated
+      type (field3DReal), pointer :: dst                !< Output: Field to contain the duplicate
+      logical, intent(in), optional :: copy_array_only  !< Input: whether to assume that dst exists, and only copy array data
+
+      integer :: sm1,em1,sm2,em2,sm3,em3
+
+      allocate(dst)
+      dst%fieldhead=src%fieldhead
+      sm1=dst%sm1
+      em1=dst%em1
+      sm2=dst%sm2
+      em2=dst%em2
+      sm3=dst%sm3
+      em3=dst%em3
+
+      allocate(dst%array(sm1:em1,sm2:em2,sm3:em3))
+      dst%array=src%array
+
+   end subroutine wrfjedi_duplicate_field3d_real !}}}
+
+   subroutine wrfjedi_release_duplicate_field3d_real(dst) !{{{
+      implicit none
+      type (field3DReal), pointer :: dst
+
+      deallocate(dst%array)
+      deallocate(dst)
+
+   end subroutine wrfjedi_release_duplicate_field3d_real !}}}
 
 end module wrfjedi_fields_mod

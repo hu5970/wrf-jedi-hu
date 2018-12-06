@@ -4,36 +4,51 @@
   },
   "test_framework_runtime_config": "--log_level=test_suite",
   "Geometry": {
-    "gridfname": "Data/x1.2562.init.nc"
+    "gridfname": "Data/wrfinput_d01"
   },
   "Model": {
-    "tstep": "PT30M",
+    "variables": ["THM_1", "MU_1", "QV_DIABATIC", "U_2", "V_2"],
+    "name": "WRFJEDI",
+    "tstep": "PT4H",
     "fclength": "PT0H",
     "finalnorm": 0.020383,
     "tolerance": 0.005
   },
   "Initial Condition": {
-    "filename": "Data/x1.2562.init.nc",
-    "date": "2016-03-04T06:00:00Z"
+    "variables": ["t_1", "mu_1", "qv_diabatic", "u_1", "v_1"],
+    "filename": "./wrfinput.2018-08-12_12.00.00.nc",
+    "date": "2018-08-12T12:00:00Z"
   },
+  "forecast_length": "PT0M",
   "Observations": {
     "ObsTypes": [
       {
         "ObsType": "Radiosonde",
         "ObsData": {
           "ObsDataIn": {
-            "obsfile": "Data/diag_t_01_wprofiles.nc4"
+            "obsfile": "Data/sondes_obs_2018041500_m.nc4"
           }
         },
+        "GeoVaLs": {
+          "norm": "64095.620998649632",
+          "random": "0",
+          "filename": "Data/sondes_geoval_2018041500_m.nc4"
+        },
+        "rmsequiv": "254.46418485798108",
+        "tolerance": "1.0e-8",
         "ObsBias": {}
       }
     ]
   },
+  "output": {
+    "frequency": "PT10M",
+    "filename": "./wrfjedi_analysis.$Y-$M-$D_$h.$m.$s.nc"
+  },
   "Prints": {
-    "frequency": "PT3H"
+    "frequency": "PT30M"
   },
   "Assimilation Window": {
-    "Begin": "2016-03-04T06:00:00Z",
-    "Length": "PT0H"
+    "Begin": "2018-08-12T10:00:00Z",
+    "Length": "PT4H"
   }
 }

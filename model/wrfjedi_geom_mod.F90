@@ -108,9 +108,9 @@ subroutine geo_setup(self, c_conf)
          sd3=model_config_rec%s_vert(i)
          ed3=model_config_rec%e_vert(i)
 
-         self%e_we(i)=ed1-sd1+1
-         self%e_sn(i)=ed2-sd2+1
-         self%e_vert(i)=ed3-sd3+1
+         self%e_we(i)=ed1-sd1
+         self%e_sn(i)=ed2-sd2
+         self%e_vert(i)=ed3-sd3
       enddo
 !
       write(*,*) 'max domain = ',max_dom
