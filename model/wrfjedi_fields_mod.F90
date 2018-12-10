@@ -691,13 +691,13 @@ subroutine getvalues(fld, locs, vars, gom, traj)
    INTEGER :: sp1,ep1,sp2,ep2,sp3,ep3
    
 
-
-
    type(bump_type), target  :: bump
-   type(bump_type), pointer :: pbump
-   logical,         target  :: bump_alloc
-   logical,         pointer :: pbumpa
-   
+   type(bump_type), pointer :: pbump => null()
+   logical,         target  :: bump_alloc = .false.
+   logical,         pointer :: pbump_alloc => null()
+   integer, save, target    :: bumpid = 1000
+   integer ,        pointer :: pbumpid => null()
+
    real(kind=kind_real), allocatable :: mod_field(:,:), mod_field_ext(:,:)
    real(kind=kind_real), allocatable :: obs_field(:,:)
 !   real(kind=kind_real), allocatable :: tmp_field(:,:)  !< for wspeed/wdir
@@ -743,16 +743,6 @@ subroutine getvalues(fld, locs, vars, gom, traj)
    domain_id=1
    call geo_info(fld%geom,domain_id, nx,ny,nz)
    write(*,*) 'geo info =',nx,ny,nz
-   allocate(field3d)
-   call wrfjedi_pool_get_field(bkpool, 'THM_1', field3d)
-   sp1=field3d%sp1
-   ep1=field3d%ep1
-   sp2=field3d%sp2
-   ep2=field3d%ep2
-   sp3=field3d%sp3
-   ep3=field3d%ep3
-   deallocate(field3d)
-   write(*,*) 'field3d patch dimension =',sp1,ep1,sp2,ep2,sp3,ep3
 
    ngrid = nx*ny
    nobs = locs%nlocs
@@ -761,18 +751,20 @@ subroutine getvalues(fld, locs, vars, gom, traj)
 
    pbump => bump
    bump_alloc = .false.
-   pbumpa => bump_alloc
+   pbump_alloc => bump_alloc
+   bumpid = bumpid + 1
+   pbumpid => bumpid
 
-   if (.not. pbumpa) then
+   if (.not. pbump_alloc) then
     ! Calculate interpolation weight using BUMP
     ! ------------------------------------------
       write(*,*)'call initialize_interp(...)'
       allocate(field2d,field2d_src)
       call wrfjedi_pool_get_field(auxpool, 'XLONG', field2d)
       call wrfjedi_pool_get_field(auxpool, 'XLAT' , field2d_src)
-      call initialize_interp(fld%geom, locs, pbump,field2d,field2d_src)
+      call initialize_bump(fld%geom, locs, pbump, pbumpid,field2d,field2d_src)
       deallocate(field2d,field2d_src)
-      pbumpa = .true.
+      pbump_alloc = .true.
       write(*,*)'interp: after initialize_interp'
    endif
 
@@ -814,6 +806,12 @@ subroutine getvalues(fld, locs, vars, gom, traj)
         allocate(field3d)
 !        call wrfjedi_pool_get_array(bkpool, 'THM_1', field3d) !< get temperature
         call wrfjedi_pool_get_field(bkpool, 'THM_1', field3d)
+        sp1=field3d%sp1
+        ep1=field3d%ep1
+        sp2=field3d%sp2
+        ep2=field3d%ep2
+        sp3=field3d%sp3
+        ep3=field3d%ep3
         do k=1,nz
            write(*,*) 'MIN/MAX of temperature=',k,minval(field3d%array(sp1:ep1,k,sp3:ep3)), &
                                                   maxval(field3d%array(sp1:ep1,k,sp3:ep3))
@@ -841,8 +839,12 @@ subroutine getvalues(fld, locs, vars, gom, traj)
               enddo
            enddo
            write(*,*) 'MIN/MAX of temperature=',jlev,maxval(mod_field),minval(mod_field)
+!           write(*,*) 'check background=',field3d%array(10,jlev,10),field3d%array(50,jlev,50)
            call pbump%apply_obsop(mod_field,obs_field)
-           gom%geovals(ivar)%vals(gom%geovals(ivar)%nval - jlev + 1,:) = obs_field(:,1)
+           k=gom%geovals(ivar)%nval - jlev + 1
+           gom%geovals(ivar)%vals(k,:) = obs_field(:,1)
+!           write(*,*) 'check obs==',obs_field(10,1),obs_field(11,1),obs_field(12,1)
+!           write(*,*) 'check obs==',(obs_field(ii,1),ii=1,20)
         end do
 
         deallocate(field3d)   
@@ -857,6 +859,10 @@ subroutine getvalues(fld, locs, vars, gom, traj)
         allocate(field2d_src)
         call wrfjedi_pool_get_field(auxpool, 'MUB', field2d_src)
         call wrfjedi_duplicate_field(field2d_src, field2d)
+        sp1=field2d%sp1
+        ep1=field2d%ep1
+        sp2=field2d%sp2
+        ep2=field2d%ep2
         deallocate(field2d_src)   
         field2d%array(:,:) = r2d_ptr_a(:,:) + r2d_ptr_b(:,:)
         nullify(r2d_ptr_a)
@@ -868,15 +874,32 @@ subroutine getvalues(fld, locs, vars, gom, traj)
         call wrfjedi_pool_get_array(auxpool, 'ZNU', r1d_ptr_a) 
         write(*,*) ' pressure top=',r0d_ptr_a
 
+! create geoval space for pressure
+        if( .not. allocated(gom%geovals(ivar)%vals) )then
+           gom%geovals(ivar)%nval = fld%geom%e_vert(domain_id)
+           if(trim(gom%variables%fldnames(ivar)).eq.var_prsi) &
+                gom%geovals(ivar)%nval = fld%geom%e_vert(domain_id) + 1 
+           allocate( gom%geovals(ivar)%vals(gom%geovals(ivar)%nval,nobs) )
+        endif
+
+! calculate pressure for each level and interpolate to obs location
         allocate(r2d_ptr_a(sp1:ep1,sp2:ep2))
-        do k=1,nz
+        do jlev=1,nz
+           ji=0
            do j=sp2,ep2
               do i=sp1,ep1
-                 r2d_ptr_a(i,j)=r1d_ptr_a(k)*(field2d%array(i,j) - r0d_ptr_a) 
+                 ji=ji+1
+                 r2d_ptr_a(i,j)=r1d_ptr_a(jlev)*(field2d%array(i,j) - r0d_ptr_a) 
+                 mod_field(ji,1) = r2d_ptr_a(i,j)
               enddo
            enddo
-           write(*,*) 'MIN/MAX of znu, P=',k, r1d_ptr_a(k),minval(r2d_ptr_a(sp1:ep1,sp2:ep2)),&
-                                         maxval(r2d_ptr_a(sp1:ep1,sp2:ep2))
+           write(*,*) 'MIN/MAX of znu, P=',jlev,r1d_ptr_a(jlev),minval(mod_field(1:ngrid,1)),&
+                                         maxval(mod_field(1:ngrid,1))
+           call pbump%apply_obsop(mod_field,obs_field)
+           k=gom%geovals(ivar)%nval - jlev + 1
+           gom%geovals(ivar)%vals(k,:) = log(obs_field(:,1)/1000.0_kind_real)  ! covert to log(cb)
+           write(*,*) 'MIN/MAX of lnP=',minval(gom%geovals(ivar)%vals(k,:)),&
+                                        maxval(gom%geovals(ivar)%vals(k,:))
         enddo
 
         deallocate(r2d_ptr_a)
@@ -896,7 +919,7 @@ subroutine getvalues(fld, locs, vars, gom, traj)
    deallocate(mod_field)
    deallocate(obs_field)
    write(*,*) '---- Leaving getvalues ---'
-   call abor1_ftn("wrfjedi_fields:getvalues:  debug stop point")
+!   call abor1_ftn("wrfjedi_fields:getvalues:  debug stop point")
 
 end subroutine getvalues
 
@@ -960,9 +983,8 @@ end subroutine getvalues_ad
 
 ! ------------------------------------------------------------------------------
 
-subroutine initialize_interp(grid, locs, bump,field2dLon,field2dLat)
+subroutine initialize_bump(grid, locs, bump, bumpid, field2dLon, field2dLat)
 
-   use fckit_mpi_module, only: fckit_mpi_comm
    use wrfjedi_geom_mod, only: wrfjedi_geom
    use type_bump, only: bump_type
    
@@ -970,29 +992,24 @@ subroutine initialize_interp(grid, locs, bump,field2dLon,field2dLat)
    type(wrfjedi_geom),       intent(in)  :: grid
    type(ioda_locs),          intent(in)  :: locs
    type(bump_type), pointer, intent(out) :: bump
+   integer,                  intent(in)  :: bumpid
    type (field2DReal), pointer,intent(in):: field2dLon,field2dLat
-   
-   type(fckit_mpi_comm) :: f_comm
-
-   logical, save :: interp_initialized = .FALSE.
    
    integer :: mod_nz,mod_num
    real(kind=kind_real), allocatable :: mod_lat(:), mod_lon(:) 
    real(kind=kind_real), allocatable :: area(:),vunit(:,:)
    logical, allocatable :: lmask(:,:)
 
-   integer, save :: bumpcount = 0
-   character(len=5) :: cbumpcount
-   character(len=17) :: bump_nam_prefix
+   character(len=5)   :: cbumpcount
+   character(len=255) :: bump_nam_prefix
   
    integer :: domainid
    integer :: sp1,ep1,sp2,ep2
    integer :: ii, jj, ji, jvar, jlev
    real(kind=kind_real) :: deg2rad
+   real(kind=kind_real), allocatable :: locobs_lat(:), locobs_lon(:) 
  
    domainid=1
-   f_comm = fckit_mpi_comm()
-
    sp1=field2dLon%sp1
    ep1=field2dLon%ep1
    sp2=field2dLon%sp2
@@ -1003,15 +1020,14 @@ subroutine initialize_interp(grid, locs, bump,field2dLon,field2dLat)
    ! Each bump%nam%prefix must be distinct
    ! -------------------------------------
 
-   bumpcount = bumpcount + 1
-   write(cbumpcount,"(I0.2)") bumpcount
-   bump_nam_prefix = 'mpas_bump_data_'//cbumpcount
+   write(cbumpcount,"(I0.5)") bumpid
+   bump_nam_prefix = 'wrfjedi_bump_data_'//cbumpcount
 
    !Get the Solution dimensions
    !---------------------------
    mod_nz  = grid%e_vert(domainid)
    mod_num = grid%e_sn(domainid)*grid%e_we(domainid)
-   write(*,*)'initialize_interp mod_num,obs_num = ', mod_num, mod_nz
+   write(*,*)'initialize_interp mod_num,mod_nz = ', mod_num, mod_nz
 
    !Calculate interpolation weight using BUMP
    !------------------------------------------
@@ -1025,12 +1041,30 @@ subroutine initialize_interp(grid, locs, bump,field2dLon,field2dLat)
        enddo
     enddo
 
+   allocate(locobs_lat(locs%nlocs), locobs_lon(locs%nlocs))
+   locobs_lat(1:locs%nlocs)=locs%lat(1:locs%nlocs)
+   locobs_lon(1:locs%nlocs)=locs%lon(1:locs%nlocs)
+   locobs_lat(10)=field2dLat%array( 10,10 )
+   locobs_lon(10)=field2dLon%array( 10,10 )
+   locobs_lat(12)=field2dLat%array( 50,50 )
+   locobs_lon(12)=field2dLon%array( 50,50 )
+!   do ji=1,mod_num,50
+!      write(*,*) 'model=',ji,mod_lon(ji),mod_lat(ji)
+!   enddo
+!   do ji=1,locs%nlocs
+!       write(*,*) 'obs==',ji,locobs_lon(ji),locobs_lat(ji)
+!   enddo
+
+   ! Namelist options
+   ! ----------------
+
     !Important namelist options
     call bump%nam%init
     bump%nam%obsop_interp = 'bilin'          ! Interpolation type (bilinear)
 
     !Less important namelist options (should not be changed)
-    bump%nam%prefix       = bump_nam_prefix  ! Prefix for files output
+    bump%nam%prefix       = trim(bump_nam_prefix)  ! Prefix for files output
+    bump%nam%default_seed = .true.
     bump%nam%new_obsop    = .true.
 
     !Initialize geometry
@@ -1041,19 +1075,26 @@ subroutine initialize_interp(grid, locs, bump,field2dLon,field2dLat)
     vunit = 1.0          ! Dummy vertical unit
     lmask = .true.       ! Mask
 
-    !Initialize BUMP
-!    call bump%setup_online(f_comm%communicator(),mod_num,1,1,1,mod_lon,mod_lat,area,vunit,lmask, &
-!                           nobs=locs%nlocs,lonobs=obs_lon,latobs=obs_lat)
-    call bump%setup_online(mod_num,1,1,1,mod_lon,mod_lat,area,vunit,lmask, &
-                           nobs=locs%nlocs,lonobs=locs%lon(:),latobs=locs%lat(:))
+   ! Initialize BUMP
+   ! ---------------
+   write(*,*) 'setup_online',mod_num,locs%nlocs
+   call bump%setup_online(mod_num,1,1,1,mod_lon,mod_lat,area,vunit,lmask, &
+                          nobs=locs%nlocs,lonobs=locobs_lon,latobs=locobs_lat,lunit=6)
+!                          nobs=locs%nlocs,lonobs=locs%lon(:),latobs=locs%lat(:),lunit=6)
+
+   write(*,*) 'after setup_online'
+   ! Run BUMP drivers
+   call bump%run_drivers
+   write(*,*) 'after run_drivers'
 
     !Release memory
     deallocate(area)
     deallocate(vunit)
     deallocate(lmask)
-    deallocate( mod_lat, mod_lon )
+    deallocate(mod_lat)
+    deallocate(mod_lon)
 
-end subroutine initialize_interp
+end subroutine initialize_bump
 
 ! ------------------------------------------------------------------------------
 

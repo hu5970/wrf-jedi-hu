@@ -27,15 +27,12 @@
         "ObsData": {
           "ObsDataIn": {
             "obsfile": "Data/sondes_obs_2018041500_m.nc4"
+          },
+          "ObsDataOut": {
+            "obsfile": "sondes_hofx_2018041500_m.nc4"
           }
         },
-        "GeoVaLs": {
-          "norm": "64095.620998649632",
-          "random": "0",
-          "filename": "Data/sondes_geoval_2018041500_m.nc4"
-        },
-        "rmsequiv": "254.46418485798108",
-        "tolerance": "1.0e-8",
+        "variables": ["air_temperature"],
         "ObsBias": {}
       }
     ]
