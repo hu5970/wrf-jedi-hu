@@ -452,8 +452,8 @@ end subroutine wrfjedi_field_rms_c
 subroutine wrfjedi_field_getvalues_notraj_c(c_key_fld,c_key_loc,c_vars,c_key_gom) bind(c,name='wrfjedi_field_getvalues_notraj_f90')
 use iso_c_binding
 use wrfjedi_fields_mod
-use ioda_locs_mod
-use ioda_locs_mod_c, only: ioda_locs_registry
+use ufo_locs_mod
+use ufo_locs_mod_c, only: ufo_locs_registry
 use ufo_vars_mod
 use ufo_geovals_mod
 use ufo_geovals_mod_c, only: ufo_geovals_registry
@@ -463,12 +463,12 @@ integer(c_int), intent(in) :: c_key_loc  !< List of requested locations
 type(c_ptr), intent(in) :: c_vars  !< List of requested variables
 integer(c_int), intent(in) :: c_key_gom  !< Interpolated values
 type(wrfjedi_field), pointer :: fld
-type(ioda_locs),  pointer :: locs
+type(ufo_locs),  pointer :: locs
 type(ufo_vars)  :: vars
 type(ufo_geovals),  pointer :: gom
 
 call wrfjedi_field_registry%get(c_key_fld, fld)
-call ioda_locs_registry%get(c_key_loc, locs)
+call ufo_locs_registry%get(c_key_loc, locs)
 call ufo_vars_setup(vars, c_vars)
 call ufo_geovals_registry%get(c_key_gom, gom)
 
@@ -481,8 +481,8 @@ end subroutine wrfjedi_field_getvalues_notraj_c
 subroutine wrfjedi_field_getvalues_c(c_key_fld,c_key_loc,c_vars,c_key_gom,c_key_traj) bind(c,name='wrfjedi_field_getvalues_f90')
 use iso_c_binding
 use wrfjedi_fields_mod
-use ioda_locs_mod
-use ioda_locs_mod_c, only: ioda_locs_registry
+use ufo_locs_mod
+use ufo_locs_mod_c, only: ufo_locs_registry
 use ufo_vars_mod
 use ufo_geovals_mod
 use ufo_geovals_mod_c, only: ufo_geovals_registry
@@ -494,13 +494,13 @@ type(c_ptr), intent(in) :: c_vars  !< List of requested variables
 integer(c_int), intent(in) :: c_key_gom  !< Interpolated values
 integer(c_int), intent(in), optional :: c_key_traj !< Trajectory for interpolation/transforms
 type(wrfjedi_field), pointer :: fld
-type(ioda_locs),  pointer :: locs
+type(ufo_locs),  pointer :: locs
 type(ufo_vars)  :: vars
 type(ufo_geovals),  pointer :: gom
 type(wrfjedi_getvaltraj), pointer :: traj
 
 call wrfjedi_field_registry%get(c_key_fld, fld)
-call ioda_locs_registry%get(c_key_loc, locs)
+call ufo_locs_registry%get(c_key_loc, locs)
 call ufo_vars_setup(vars, c_vars)
 call ufo_geovals_registry%get(c_key_gom, gom)
 call wrfjedi_getvaltraj_registry%get(c_key_traj, traj)
@@ -515,8 +515,8 @@ subroutine wrfjedi_field_getvalues_tl_c(c_key_fld,c_key_loc,c_vars,c_key_gom,c_k
                                         bind(c,name='wrfjedi_field_getvalues_tl_f90')
 use iso_c_binding
 use wrfjedi_fields_mod
-use ioda_locs_mod
-use ioda_locs_mod_c, only: ioda_locs_registry
+use ufo_locs_mod
+use ufo_locs_mod_c, only: ufo_locs_registry
 use ufo_vars_mod
 use ufo_geovals_mod
 use ufo_geovals_mod_c, only: ufo_geovals_registry
@@ -528,13 +528,13 @@ type(c_ptr), intent(in) :: c_vars  !< List of requested variables
 integer(c_int), intent(in) :: c_key_gom  !< Interpolated values
 integer(c_int), intent(in) :: c_key_traj !< Trajectory for interpolation/transforms
 type(wrfjedi_field), pointer :: fld
-type(ioda_locs),  pointer :: locs
+type(ufo_locs),  pointer :: locs
 type(ufo_vars)  :: vars
 type(ufo_geovals),  pointer :: gom
 type(wrfjedi_getvaltraj), pointer :: traj
 
 call wrfjedi_field_registry%get(c_key_fld, fld)
-call ioda_locs_registry%get(c_key_loc, locs)
+call ufo_locs_registry%get(c_key_loc, locs)
 call ufo_vars_setup(vars, c_vars)
 call ufo_geovals_registry%get(c_key_gom, gom)
 call wrfjedi_getvaltraj_registry%get(c_key_traj, traj)
@@ -549,8 +549,8 @@ subroutine wrfjedi_field_getvalues_ad_c(c_key_fld,c_key_loc,c_vars,c_key_gom,c_k
                                         bind(c,name='wrfjedi_field_getvalues_ad_f90')
 use iso_c_binding
 use wrfjedi_fields_mod
-use ioda_locs_mod
-use ioda_locs_mod_c, only: ioda_locs_registry
+use ufo_locs_mod
+use ufo_locs_mod_c, only: ufo_locs_registry
 use ufo_vars_mod
 use ufo_geovals_mod
 use ufo_geovals_mod_c, only: ufo_geovals_registry
@@ -562,13 +562,13 @@ type(c_ptr), intent(in) :: c_vars  !< List of requested variables
 integer(c_int), intent(in) :: c_key_gom  !< Interpolated values
 integer(c_int), intent(in) :: c_key_traj !< Trajectory for interpolation/transforms
 type(wrfjedi_field), pointer :: fld
-type(ioda_locs),  pointer :: locs
+type(ufo_locs),  pointer :: locs
 type(ufo_vars)  :: vars
 type(ufo_geovals),  pointer :: gom
 type(wrfjedi_getvaltraj), pointer :: traj
 
 call wrfjedi_field_registry%get(c_key_fld, fld)
-call ioda_locs_registry%get(c_key_loc, locs)
+call ufo_locs_registry%get(c_key_loc, locs)
 call ufo_geovals_registry%get(c_key_gom, gom)
 call ufo_vars_setup(vars, c_vars)
 call wrfjedi_getvaltraj_registry%get(c_key_traj, traj)

@@ -16,7 +16,7 @@
 #include "oops/base/Variables.h"
 #include "oops/generic/UnstructuredGrid.h"
 #include "ufo/GeoVaLs.h"
-#include "ioda/Locations.h"
+#include "ufo/Locations.h"
 #include "oops/util/Logger.h"
 #include "Fortran.h"
 #include "GeometryWRFJEDI.h"
@@ -122,7 +122,7 @@ void FieldsWRFJEDI::random() {
   wrfjedi_field_random_f90(keyFlds_);
 }
 // -----------------------------------------------------------------------------
-void FieldsWRFJEDI::getValues(const ioda::Locations & locs,
+void FieldsWRFJEDI::getValues(const ufo::Locations & locs,
                            const oops::Variables & vars,
                            ufo::GeoVaLs & gom) const {
   const eckit::Configuration * conf = &vars.toFortran();
@@ -130,7 +130,7 @@ void FieldsWRFJEDI::getValues(const ioda::Locations & locs,
                                  gom.toFortran());
 }
 // -----------------------------------------------------------------------------
-void FieldsWRFJEDI::getValues(const ioda::Locations & locs,
+void FieldsWRFJEDI::getValues(const ufo::Locations & locs,
                            const oops::Variables & vars,
                            ufo::GeoVaLs & gom,
                            const GetValuesTrajWRFJEDI & traj) const {
@@ -139,7 +139,7 @@ void FieldsWRFJEDI::getValues(const ioda::Locations & locs,
                            gom.toFortran(), traj.toFortran());
 }
 // -----------------------------------------------------------------------------
-void FieldsWRFJEDI::getValuesTL(const ioda::Locations & locs,
+void FieldsWRFJEDI::getValuesTL(const ufo::Locations & locs,
                              const oops::Variables & vars,
                              ufo::GeoVaLs & gom,
                              const GetValuesTrajWRFJEDI & traj) const {
@@ -148,7 +148,7 @@ void FieldsWRFJEDI::getValuesTL(const ioda::Locations & locs,
                               gom.toFortran(), traj.toFortran());
 }
 // -----------------------------------------------------------------------------
-void FieldsWRFJEDI::getValuesAD(const ioda::Locations & locs,
+void FieldsWRFJEDI::getValuesAD(const ufo::Locations & locs,
                              const oops::Variables & vars,
                              const ufo::GeoVaLs & gom,
                              const GetValuesTrajWRFJEDI & traj) {

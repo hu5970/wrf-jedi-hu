@@ -43,7 +43,7 @@ list(APPEND WRFJEDI_INCLUDES ${WRF_MODEL_PATH}/main ${WRF_MODEL_PATH}/frame ${WR
 
 set(WRFJEDI_LIBRARIES)
 SET(WRF_LIBS_EXTERNAL ${WRF_MODEL_PATH}/external/fftpack/fftpack5/libfftpack.a ${WRF_MODEL_PATH}/external/io_grib1/libio_grib1.a ${WRF_MODEL_PATH}/external/io_grib_share/libio_grib_share.a ${WRF_MODEL_PATH}/external/io_int/libwrfio_int.a ${WRF_MODEL_PATH}/external/esmf_time_f90/libesmf_time.a ${WRF_MODEL_PATH}/external/RSL_LITE/librsl_lite.a)
-SET(WRF_LIBS_NF -L${WRF_MODEL_PATH}/external/io_netcdf -lwrfio_nf -L$ENV{NETCDF}/lib -lnetcdff -lnetcdf -L${WRF_MODEL_PATH}/external/io_pnetcdf -lwrfio_pnf -L$ENV{NETCDF}/lib -lpnetcdf)
+SET(WRF_LIBS_NF -L${WRF_MODEL_PATH}/external/io_netcdf -lwrfio_nf -L$ENV{NETCDF}/lib -lnetcdff -lnetcdf)
 
 list(APPEND WRFJEDI_LIBRARIES -L${WRF_MODEL_PATH}/main -lwrflib)
 list(APPEND WRFJEDI_LIBRARIES ${WRF_LIBS_EXTERNAL})

@@ -12,8 +12,8 @@ use wrfjedi_geom_mod
 use ufo_vars_mod
 use wrfjedi_kinds, only : kind_real,StrKIND
 use wrfjedi_kinds, only : RKIND
-use ioda_locs_mod
 use ufo_geovals_mod
+use ufo_locs_mod
 use wrfjedi_getvaltraj_mod, only: wrfjedi_getvaltraj
 
 use wrfjedi_pool_routines, only : wrfjedi_pool_type, &
@@ -669,7 +669,7 @@ subroutine getvalues(fld, locs, vars, gom, traj)
 
    implicit none
    type(wrfjedi_field),                     intent(in)    :: fld
-   type(ioda_locs),                         intent(in)    :: locs
+   type(ufo_locs),                          intent(in)    :: locs
    type(ufo_vars),                          intent(in)    :: vars
    type(ufo_geovals),                       intent(inout) :: gom
    type(wrfjedi_getvaltraj), optional, target, intent(inout) :: traj
@@ -929,7 +929,7 @@ subroutine getvalues_tl(fld, locs, vars, gom, traj)
 
    implicit none
    type(wrfjedi_field),      intent(inout) :: fld
-   type(ioda_locs),       intent(in)    :: locs
+   type(ufo_locs),        intent(in)    :: locs
    type(ufo_vars),        intent(in)    :: vars
    type(ufo_geovals),     intent(inout) :: gom
    type(wrfjedi_getvaltraj), intent(in)    :: traj
@@ -958,7 +958,7 @@ subroutine getvalues_ad(fld, locs, vars, gom, traj)
 
    implicit none
    type(wrfjedi_field),      intent(inout) :: fld
-   type(ioda_locs),       intent(in)    :: locs
+   type(ufo_locs),        intent(in)    :: locs
    type(ufo_vars),        intent(in)    :: vars
    type(ufo_geovals),     intent(inout) :: gom
    type(wrfjedi_getvaltraj), intent(in)    :: traj
@@ -990,7 +990,7 @@ subroutine initialize_bump(grid, locs, bump, bumpid, field2dLon, field2dLat)
    
    implicit none
    type(wrfjedi_geom),       intent(in)  :: grid
-   type(ioda_locs),          intent(in)  :: locs
+   type(ufo_locs),           intent(in)  :: locs
    type(bump_type), pointer, intent(out) :: bump
    integer,                  intent(in)  :: bumpid
    type (field2DReal), pointer,intent(in):: field2dLon,field2dLat
@@ -1103,7 +1103,7 @@ subroutine interp_checks(cop, fld, locs, vars, gom)
    implicit none
    character(len=2),  intent(in) :: cop
    type(wrfjedi_field),  intent(in) :: fld
-   type(ioda_locs),   intent(in) :: locs
+   type(ufo_locs),    intent(in) :: locs
    type(ufo_vars),    intent(in) :: vars
    type(ufo_geovals), intent(in) :: gom
    

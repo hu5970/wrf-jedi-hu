@@ -33,9 +33,6 @@ namespace oops {
 
 namespace ufo {
   class GeoVaLs;
-}
-
-namespace ioda {
   class Locations;
 }
 
@@ -69,13 +66,13 @@ class FieldsWRFJEDI : public util::Printable,
   void dirac(const eckit::Configuration &);
 
 /// Get state values or increments at observation locations
-  void getValues(const ioda::Locations &, const oops::Variables &,
+  void getValues(const ufo::Locations &, const oops::Variables &,
                  ufo::GeoVaLs &) const;
-  void getValues(const ioda::Locations &, const oops::Variables &,
+  void getValues(const ufo::Locations &, const oops::Variables &,
                  ufo::GeoVaLs &, const GetValuesTrajWRFJEDI &) const;
-  void getValuesTL(const ioda::Locations &, const oops::Variables &,
+  void getValuesTL(const ufo::Locations &, const oops::Variables &,
                    ufo::GeoVaLs &, const GetValuesTrajWRFJEDI &) const;
-  void getValuesAD(const ioda::Locations &, const oops::Variables &,
+  void getValuesAD(const ufo::Locations &, const oops::Variables &,
                    const ufo::GeoVaLs &, const GetValuesTrajWRFJEDI &);
 
 // Interpolate full fields

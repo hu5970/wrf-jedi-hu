@@ -21,13 +21,13 @@
 #include "ModelBiasCovarianceWRFJEDI.h"
 #include "StateWRFJEDI.h"
 #include "ufo/GeoVaLs.h"
-#include "ioda/Locations.h"
 #include "ioda/ObsSpace.h"
 #include "ioda/ObsVector.h"
+#include "ufo/LinearObsOperator.h"
+#include "ufo/Locations.h"
 #include "ufo/ObsBias.h"
 #include "ufo/ObsBiasIncrement.h"
 #include "ufo/ObsBiasCovariance.h"
-//#include "ufo/ObsCheck.h"
 #include "ufo/ObsOperator.h"
 #include "ufo/LinearObsOperator.h"
 
@@ -63,7 +63,7 @@ struct WRFJEDITraits {
 //  typedef ufo::ObsCheck                        ObsCheck;
 
   typedef ufo::GeoVaLs                         GeoVaLs;
-  typedef ioda::Locations                      Locations;
+  typedef ufo::Locations                       Locations;
 };
 
 }  // namespace wrfjedi

@@ -1,5 +1,5 @@
 
-!> Fortran module handling interpolation trajectory for the MPAS model
+!> Fortran module handling interpolation trajectory for the WRF model
 
 module wrfjedi_getvaltraj_mod
 

@@ -14,7 +14,7 @@
 #include "eckit/config/LocalConfiguration.h"
 #include "oops/util/Logger.h"
 #include "ufo/GeoVaLs.h"
-#include "ioda/Locations.h"
+#include "ufo/Locations.h"
 #include "ModelBiasWRFJEDI.h"
 #include "FieldsWRFJEDI.h"
 #include "GeometryWRFJEDI.h"
@@ -85,14 +85,14 @@ StateWRFJEDI & StateWRFJEDI::operator=(const StateWRFJEDI & rhs) {
 // -----------------------------------------------------------------------------
 /// Get state values at observation locations
 // -----------------------------------------------------------------------------
-void StateWRFJEDI::getValues(const ioda::Locations & locs,
+void StateWRFJEDI::getValues(const ufo::Locations & locs,
                              const oops::Variables & vars,
                              ufo::GeoVaLs & cols) const {
   oops::Log::trace() << "StateWRFJEDI::getValues STANDARD ONE" << std::endl;
   fields_->getValues(locs, vars, cols);
 }
 // -----------------------------------------------------------------------------
-void StateWRFJEDI::getValues(const ioda::Locations & locs,
+void StateWRFJEDI::getValues(const ufo::Locations & locs,
                              const oops::Variables & vars,
                              ufo::GeoVaLs & cols,
                              const GetValuesTrajWRFJEDI & traj) const {

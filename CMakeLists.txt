@@ -103,7 +103,7 @@ foreach( _tpl ${WRFJEDI_TPLS} )
 endforeach()
 
 # set( WRF_MODEL_PATH $ENV{WRF_MODEL})
-set( WRF_MODEL_PATH "/vagrant_data/code/WRFv4.0_JEDI")
+set( WRF_MODEL_PATH "/home/xinzhang/JEDI/WRFv4.0_JEDI")
 #SET( Fortran_FLAGS_WRF "-O3 -ip -fp-model precise -w -ftz -align all -fno-alias -FR -convert big_endian")
 #SET( Fortran_FLAGS_SIZE_WRF "  -real-size 32 -i4  ")
 #set_source_files_properties(${SRC_LIST} PROPERTIES COMPILE_FLAGS "${Fortran_FLAGS} ${Fortran_FLAGS_SIZE} ${CPP_FLAGS}")
