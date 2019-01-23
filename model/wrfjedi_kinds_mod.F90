@@ -17,7 +17,7 @@ module wrfjedi_kinds
 
   integer, parameter :: I8KIND = selected_int_kind(18)
 
-  integer, parameter :: RKIND=R4KIND
+  integer, parameter :: RKIND=R8KIND
 
   integer, parameter :: StrKIND = 512
   integer, parameter :: ShortStrKIND = 64

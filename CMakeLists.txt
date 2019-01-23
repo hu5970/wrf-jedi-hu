@@ -4,7 +4,7 @@
 # which can be obtained at http://www.apache.org/licenses/LICENSE-2.0.
 
 ################################################################################
-# MPAS 
+# WRF 
 ################################################################################
 
 cmake_minimum_required( VERSION 3.3.2 FATAL_ERROR )
@@ -20,7 +20,7 @@ set( ENABLE_MPI ON CACHE BOOL "Compile with MPI" )
 
 include( ecbuild_system NO_POLICY_SCOPE )
 
-ecbuild_requires_macro_version( 2.5 )
+ecbuild_requires_macro_version( 2.9 )
 
 ################################################################################
 # Project
@@ -31,7 +31,7 @@ ecbuild_declare_project()
 ecbuild_enable_fortran( REQUIRED )
 ecbuild_add_cxx11_flags()
 
-set( MPAS_LINKER_LANGUAGE CXX )
+set( WRF_LINKER_LANGUAGE CXX )
 
 ################################################################################
 # Dependencies
@@ -103,7 +103,7 @@ foreach( _tpl ${WRFJEDI_TPLS} )
 endforeach()
 
 # set( WRF_MODEL_PATH $ENV{WRF_MODEL})
-set( WRF_MODEL_PATH "/home/xinzhang/JEDI/WRFv4.0_JEDI")
+set( WRF_MODEL_PATH "/home/xinzhang/JEDI/WRF")
 #SET( Fortran_FLAGS_WRF "-O3 -ip -fp-model precise -w -ftz -align all -fno-alias -FR -convert big_endian")
 #SET( Fortran_FLAGS_SIZE_WRF "  -real-size 32 -i4  ")
 #set_source_files_properties(${SRC_LIST} PROPERTIES COMPILE_FLAGS "${Fortran_FLAGS} ${Fortran_FLAGS_SIZE} ${CPP_FLAGS}")
@@ -113,7 +113,7 @@ set( WRF_MODEL_PATH "/home/xinzhang/JEDI/WRFv4.0_JEDI")
 # Sources
 ################################################################################
 
-# include( wrf_compiler_flags )
+include( wrfjedi_compiler_flags )
 include_directories( ${WRFJEDI_INCLUDE_DIRS}/model ${WRFJEDI_EXTRA_INCLUDE_DIRS}
                      ${CMAKE_CURRENT_SOURCE_DIR}/model )
 
