@@ -9,7 +9,7 @@
 
 cmake_minimum_required( VERSION 3.3.2 FATAL_ERROR )
 
-project( wrf-jedi C CXX Fortran )
+project( wrfjedi C CXX Fortran )
 
 set( CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake;${CMAKE_MODULE_PATH})
 
@@ -31,7 +31,7 @@ ecbuild_declare_project()
 ecbuild_enable_fortran( REQUIRED )
 ecbuild_add_cxx11_flags()
 
-set( WRF_LINKER_LANGUAGE CXX )
+set( WRFJEDI_LINKER_LANGUAGE CXX )
 
 ################################################################################
 # Dependencies
@@ -83,15 +83,40 @@ include_directories( ${OOPS_INCLUDE_DIRS} )
 ecbuild_use_package( PROJECT ufo )
 include_directories( ${UFO_INCLUDE_DIRS} )
 
+# wrf+
+include( DownloadProject )
+download_project(PROJ                wrfplus
+                 GIT_REPOSITORY      https://github.com/JCSDA/WRF.git
+                 GIT_TAG             feature/tlad
+                 ${UPDATE_DISCONNECTED_IF_AVAILABLE}
+)
+
+include_directories( ${wrfplus_SOURCE_DIR}/main
+                     ${wrfplus_SOURCE_DIR}/frame 
+                     ${wrfplus_SOURCE_DIR}/share
+                     ${wrfplus_SOURCE_DIR}/external/esmf_time_f90)
+
+link_directories( ${wrfplus_SOURCE_DIR}/main )
+
+################################################################################
+# Definitions
+################################################################################
+
+# Additional user supplied compiler definitions
+
+include( wrfjedi_compiler_flags )
+
 ################################################################################
 # Export package info
 ################################################################################
 
-# list( APPEND WRF_TPLS ufo oops )
+list( APPEND WRFJEDI_TPLS ufo oops wrfplus)
 
-set( WRFJEDI_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR}
-                        ${CMAKE_Fortran_MODULE_DIRECTORY} )
-set( WRFJEDI_LIBRARIES wrf-jedi )
+set( WRFJEDI_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
+                          ${CMAKE_CURRENT_BINARY_DIR}
+                          ${CMAKE_Fortran_MODULE_DIRECTORY} )
+
+set( WRFJEDI_LIBRARIES wrfjedi )
 
 get_directory_property( WRFJEDI_DEFINITIONS COMPILE_DEFINITIONS )
 
@@ -102,20 +127,11 @@ foreach( _tpl ${WRFJEDI_TPLS} )
   list( APPEND WRFJEDI_EXTRA_LIBRARIES     ${${TPL}_LIBRARIES}    ${${TPL}_TPL_LIBRARIES}    )
 endforeach()
 
-# set( WRF_MODEL_PATH $ENV{WRF_MODEL})
-set( WRF_MODEL_PATH "/home/xinzhang/JEDI/WRF")
-#SET( Fortran_FLAGS_WRF "-O3 -ip -fp-model precise -w -ftz -align all -fno-alias -FR -convert big_endian")
-#SET( Fortran_FLAGS_SIZE_WRF "  -real-size 32 -i4  ")
-#set_source_files_properties(${SRC_LIST} PROPERTIES COMPILE_FLAGS "${Fortran_FLAGS} ${Fortran_FLAGS_SIZE} ${CPP_FLAGS}")
-
-
 ################################################################################
 # Sources
 ################################################################################
 
-include( wrfjedi_compiler_flags )
-include_directories( ${WRFJEDI_INCLUDE_DIRS}/model ${WRFJEDI_EXTRA_INCLUDE_DIRS}
-                     ${CMAKE_CURRENT_SOURCE_DIR}/model )
+include_directories( ${WRFJEDI_EXTRA_INCLUDE_DIRS} )
 
 add_subdirectory( model )
 add_subdirectory( mains )
@@ -126,7 +142,7 @@ add_subdirectory( test )
 ################################################################################
 
 # prepares a tar.gz of the sources and/or binaries
-ecbuild_install_project( NAME wrf-jedi )
+ecbuild_install_project( NAME wrfjedi )
 
 # print the summary of the configuration
 ecbuild_print_summary()

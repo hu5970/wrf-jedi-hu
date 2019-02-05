@@ -6,7 +6,7 @@
  */
 
 #include "oops/util/Logger.h"
-#include "model/GeometryWRFJEDI.h"
+#include "GeometryWRFJEDI.h"
 #include "Fortran.h"
 #include "eckit/config/Configuration.h"
 

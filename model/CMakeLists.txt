@@ -36,24 +36,21 @@ wrfjedi_pool_routines.F90
 wrfjedi4da_mod.F90
 )
 
-#set ( WRFJEDI_LIBRARIES $ENV{WRFJEDI_LIBRARIES} )
-#set ( WRFJEDI_INCLUDES  $ENV{WRFJEDI_INCLUDES} )
-SET( WRFJEDI_INCLUDES ${WRF_MODEL_PATH}/external/esmf_time_f90 ${WRF_MODEL_PATH}/external/io_int)
-list(APPEND WRFJEDI_INCLUDES ${WRF_MODEL_PATH}/main ${WRF_MODEL_PATH}/frame ${WRF_MODEL_PATH}/share)
-
-set(WRFJEDI_LIBRARIES)
-SET(WRF_LIBS_EXTERNAL ${WRF_MODEL_PATH}/external/fftpack/fftpack5/libfftpack.a ${WRF_MODEL_PATH}/external/io_grib1/libio_grib1.a ${WRF_MODEL_PATH}/external/io_grib_share/libio_grib_share.a ${WRF_MODEL_PATH}/external/io_int/libwrfio_int.a ${WRF_MODEL_PATH}/external/esmf_time_f90/libesmf_time.a ${WRF_MODEL_PATH}/external/RSL_LITE/librsl_lite.a)
-SET(WRF_LIBS_NF -L${WRF_MODEL_PATH}/external/io_netcdf -lwrfio_nf -L$ENV{NETCDF}/lib -lnetcdff -lnetcdf)
-
-list(APPEND WRFJEDI_LIBRARIES -L${WRF_MODEL_PATH}/main -lwrflib)
-list(APPEND WRFJEDI_LIBRARIES ${WRF_LIBS_EXTERNAL})
-list(APPEND WRFJEDI_LIBRARIES ${WRF_MODEL_PATH}/frame/module_internal_header_util.o ${WRF_MODEL_PATH}/frame/pack_utils.o ${WRF_LIBS_NF})
+#SET( WRFJEDI_INCLUDES ${WRF_MODEL_PATH}/external/esmf_time_f90 ${WRF_MODEL_PATH}/external/io_int)
+#list(APPEND WRFJEDI_INCLUDES ${WRF_MODEL_PATH}/main ${WRF_MODEL_PATH}/frame ${WRF_MODEL_PATH}/share)
+#
+#set(WRFJEDI_LIBRARIES)
+#SET(WRF_LIBS_EXTERNAL ${WRF_MODEL_PATH}/external/fftpack/fftpack5/libfftpack.a ${WRF_MODEL_PATH}/external/io_grib1/libio_grib1.a ${WRF_MODEL_PATH}/external/io_grib_share/libio_grib_share.a ${WRF_MODEL_PATH}/external/io_int/libwrfio_int.a ${WRF_MODEL_PATH}/external/esmf_time_f90/libesmf_time.a ${WRF_MODEL_PATH}/external/RSL_LITE/librsl_lite.a)
+#SET(WRF_LIBS_NF -L${WRF_MODEL_PATH}/external/io_netcdf -lwrfio_nf -L$ENV{NETCDF}/lib -lnetcdff -lnetcdf)
+#
+#list(APPEND WRFJEDI_LIBRARIES -L${WRF_MODEL_PATH}/main -lwrflib)
+#list(APPEND WRFJEDI_LIBRARIES ${WRF_LIBS_EXTERNAL})
+#list(APPEND WRFJEDI_LIBRARIES ${WRF_MODEL_PATH}/frame/module_internal_header_util.o ${WRF_MODEL_PATH}/frame/pack_utils.o ${WRF_LIBS_NF})
 
 ecbuild_add_library( TARGET   wrf-jedi
                      SOURCES  ${oops_wrf_src_files}
-                     LIBS     oops ufo ${WRFJEDI_LIBRARIES}
-                     INCLUDES ${WRFJEDI_INCLUDES}
+                     LIBS     oops ufo wrflib
                      INSTALL_HEADERS LISTED
-                     LINKER_LANGUAGE ${OOPS_LINKER_LANGUAGE}
+                     LINKER_LANGUAGE ${WRFJEDI_LINKER_LANGUAGE}
                     )
 
