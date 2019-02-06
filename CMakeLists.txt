@@ -22,14 +22,6 @@ include( ecbuild_system NO_POLICY_SCOPE )
 
 ecbuild_requires_macro_version( 2.9 )
 
-######################################################
-# Compiler bugs force us to use GNU compiler > v7.4
-
-if( CMAKE_Fortran_COMPILER_ID MATCHES "GNU"  AND
-    CMAKE_Fortran_COMPILER_VERSION VERSION_LESS 7.4 )
-  ecbuild_critical( "To link with WRF, GNU compiler version above 7.4 is required" )
-endif()
-
 ################################################################################
 # Project
 ################################################################################
@@ -173,4 +165,3 @@ ecbuild_install_project( NAME wrfjedi )
 
 # print the summary of the configuration
 ecbuild_print_summary()
-
