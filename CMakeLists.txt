@@ -4,7 +4,7 @@
 # which can be obtained at http://www.apache.org/licenses/LICENSE-2.0.
 
 ################################################################################
-# WRF 
+# WRFJEDI
 ################################################################################
 
 cmake_minimum_required( VERSION 3.3.2 FATAL_ERROR )
@@ -21,6 +21,14 @@ set( ENABLE_MPI ON CACHE BOOL "Compile with MPI" )
 include( ecbuild_system NO_POLICY_SCOPE )
 
 ecbuild_requires_macro_version( 2.9 )
+
+######################################################
+# Compiler bugs force us to use GNU compiler > v7.4
+
+if( CMAKE_Fortran_COMPILER_ID MATCHES "GNU"  AND
+    CMAKE_Fortran_COMPILER_VERSION VERSION_LESS 7.4 )
+  ecbuild_critical( "To link with WRF, GNU compiler version above 7.4 is required" )
+endif()
 
 ################################################################################
 # Project
@@ -42,6 +50,11 @@ set( Boost_MINIMUM_VERSION "1.47" )
 find_package( Boost ${Boost_MINIMUM_VERSION} REQUIRED
               COMPONENTS unit_test_framework )
 include_directories( ${Boost_INCLUDE_DIR} )
+
+# NetCDF
+set( NETCDF_F90 ON CACHE BOOL "Compile with Fortran NetCDF" )
+find_package( NetCDF REQUIRED )
+include_directories( ${NETCDF_INCLUDE_DIR} )
 
 # MPI
 ecbuild_add_option( FEATURE MPI DEFAULT ON
@@ -83,6 +96,10 @@ include_directories( ${OOPS_INCLUDE_DIRS} )
 ecbuild_use_package( PROJECT ufo )
 include_directories( ${UFO_INCLUDE_DIRS} )
 
+# ioda
+ecbuild_use_package( PROJECT ioda )
+include_directories( ${IODA_INCLUDE_DIRS} )
+
 # wrf+
 include( DownloadProject )
 download_project(PROJ                wrfplus
@@ -91,12 +108,22 @@ download_project(PROJ                wrfplus
                  ${UPDATE_DISCONNECTED_IF_AVAILABLE}
 )
 
-include_directories( ${wrfplus_SOURCE_DIR}/main
+include_directories( ${wrfplus_SOURCE_DIR}/external/esmf_time_f90
+                     ${wrfplus_SOURCE_DIR}/external/io_int
+                     ${wrfplus_SOURCE_DIR}/main
                      ${wrfplus_SOURCE_DIR}/frame 
-                     ${wrfplus_SOURCE_DIR}/share
-                     ${wrfplus_SOURCE_DIR}/external/esmf_time_f90)
+                     ${wrfplus_SOURCE_DIR}/share)
 
-link_directories( ${wrfplus_SOURCE_DIR}/main )
+link_directories( 
+    ${wrfplus_SOURCE_DIR}/main
+    ${wrfplus_SOURCE_DIR}/external/fftpack/fftpack5
+    ${wrfplus_SOURCE_DIR}/external/io_grib1
+    ${wrfplus_SOURCE_DIR}/external/io_grib_share
+    ${wrfplus_SOURCE_DIR}/external/io_int
+    ${wrfplus_SOURCE_DIR}/external/io_netcdf
+    ${wrfplus_SOURCE_DIR}/external/esmf_time_f90 
+    ${wrfplus_SOURCE_DIR}/external/RSL_LITE
+ )
 
 ################################################################################
 # Definitions
@@ -110,7 +137,7 @@ include( wrfjedi_compiler_flags )
 # Export package info
 ################################################################################
 
-list( APPEND WRFJEDI_TPLS ufo oops wrfplus)
+list( APPEND WRFJEDI_TPLS NetCDF ioda ufo oops wrfplus)
 
 set( WRFJEDI_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
                           ${CMAKE_CURRENT_BINARY_DIR}
