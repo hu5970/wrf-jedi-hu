@@ -93,12 +93,24 @@ ecbuild_use_package( PROJECT ioda )
 include_directories( ${IODA_INCLUDE_DIRS} )
 
 # wrf+
-include( DownloadProject )
-download_project(PROJ                wrfplus
-                 GIT_REPOSITORY      https://github.com/JCSDA/WRF.git
-                 GIT_TAG             feature/tlad
-                 ${UPDATE_DISCONNECTED_IF_AVAILABLE}
-)
+if ( NOT DEFINED WRFPLUS_PATH AND DEFINED ENV{WRFPLUS_PATH} )
+  set ( WRFPLUS_PATH $ENV{WRFPLUS_PATH} )
+  set ( wrfplus_SOURCE_DIR $ENV{WRFPLUS_PATH} )
+  message( STATUS "Using pre-compiled WRFPLUS : " ${WRFPLUS_PATH} )
+endif()
+
+if ( DEFINED WRFPLUS_PATH ) 
+  set ( wrfplus_SOURCE_DIR ${WRFPLUS_PATH} )
+endif()
+
+if ( NOT DEFINED WRFPLUS_PATH )
+  include( DownloadProject )
+  download_project(PROJ                wrfplus
+                   GIT_REPOSITORY      https://github.com/JCSDA/WRF.git
+                   GIT_TAG             feature/tlad
+                   ${UPDATE_DISCONNECTED_IF_AVAILABLE}
+  )
+endif()
 
 include_directories( ${wrfplus_SOURCE_DIR}/external/esmf_time_f90
                      ${wrfplus_SOURCE_DIR}/external/io_int

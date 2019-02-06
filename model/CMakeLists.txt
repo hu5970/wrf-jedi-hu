@@ -37,7 +37,6 @@ list( APPEND oops_wrf_src_files
     wrfjedi4da_mod.F90
 )
 
-
 ecbuild_add_library( TARGET   wrf-jedi
 
                      SOURCES  
